@@ -17,10 +17,12 @@ logger = logging.getLogger(f"{appname}.{plugin_name}")
 
 
 logger.debug("edmcoverlay2: loading plugin, importing lib")
-import edmcoverlay
-logger.debug("edmcoverlay2: got lib: %s", repr(edmcoverlay))
-import edmcoverlay._edmcoverlay
-logger.debug("edmcoverlay2: got internal lib: %s", repr(edmcoverlay._edmcoverlay))
+#import edmcoverlay
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+#import edmcoverlay._edmcoverlay
+import _edmcoverlay
 
 overlay_process: Popen = None
 xpos_var: tk.IntVar
@@ -80,7 +82,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 def plugin_stop():
     global overlay_process
     logger.info("edmcoverlay2: exiting plugin")
-    edmcoverlay._edmcoverlay._the_overlay._stop()
+    _edmcoverlay._the_overlay._stop()
     stop_overlay()
 
 
