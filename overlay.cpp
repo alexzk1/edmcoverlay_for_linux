@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
     }
     auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
 
-    std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
+    //std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
 
@@ -49,17 +49,22 @@ int main(int argc, char* argv[])
     drawer.cleanFrame();
     drawer.showVersionString("edmcoverlay2 overlay process: running!", "green");
     drawer.flushFrame();
-    std::cout << "edmcoverlay2: overlay ready." << std::endl;
+    //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
     while (true)
     {
+        const static std::string stop_cmd = "NEED_TO_STOP";
+
         auto socket = server->accept_autoclose();
         const std::string request = read_response(*socket);
 
-        std::cout << "edmcoverlay2: overlay got request: " << request << std::endl;
+        if (request == stop_cmd)
+            break;
+
+        //std::cout << "edmcoverlay2: overlay got request: " << request << std::endl;
 
         drawer.cleanFrame();
-        drawer.showVersionString("edmcoverlay2 running", "white");
+        //drawer.showVersionString("edmcoverlay2 running", "white");
 
         draw_task::draw_list draws;
         try

@@ -50,8 +50,21 @@ class _Overlay:
             self._updater = threading.Thread(target=self.__updater)
 
             #when used inside EDMC we do not need server which looks buggy "address already in use"
+            self._server = None
             #self._server = threading.Thread(target=self.__server)
             #self._server.start()
+    
+    def _send2bin(self, what):
+        try:
+            conn = socket.socket()
+            conn.connect((self._host, self._port))
+            conn.send(str(len(what)).encode() + b"#" + what)
+            conn.close()
+        except socket.error as e:
+            if e.errno == errno.ECONNREFUSED:
+                logger.warning("edmcoverlay2: conn refused")
+            else:
+                raise
 
     def __updater(self):
         timestep = 1
@@ -81,16 +94,12 @@ class _Overlay:
                 ] if overlay.get(k) is not None}
                 for id, overlay in self._overlays.items()
             ]).encode()
-            try:
-                conn = socket.socket()
-                conn.connect((self._host, self._port))
-                conn.send(str(len(content)).encode() + b"#" + content)
-                conn.close()
-            except socket.error as e:
-                if e.errno == errno.ECONNREFUSED:
-                    logger.warning("edmcoverlay2: conn refused")
-                else:
-                    raise
+            self._send2bin(content)        
+        try:
+            self._send2bin("NEED_TO_STOP")
+        except:
+            pass  
+
         logger.info("edmcoverlay2: updater stopping")
 
     def __server(self):
@@ -134,12 +143,15 @@ class _Overlay:
         global _stopping
         logger.info("edmcoverlay2: stopping client threads")
         _stopping = True
-        if self._server is not None and self._server.is_alive():
-            logger.info("edmcoverlay2: waiting for server to stop")
-            self._server.join()
+        
         if self._updater is not None and self._updater.is_alive():
             logger.info("edmcoverlay2: waiting for updater to stop")
             self._updater.join()
+
+        if self._server is not None and self._server.is_alive():
+            logger.info("edmcoverlay2: waiting for server to stop")
+            self._server.join()
+            
         logger.info("edmcoverlay2: all client threads stopped")
 
     def send_raw(self, msg):

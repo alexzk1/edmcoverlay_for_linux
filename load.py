@@ -81,7 +81,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
 def plugin_stop():
     global overlay_process
-    logger.info("edmcoverlay2: exiting plugin")
+    logger.info("edmcoverlay2: exiting plugin")    
     _edmcoverlay._the_overlay._stop()
     stop_overlay()
 
