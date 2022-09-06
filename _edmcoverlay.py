@@ -21,6 +21,8 @@ IS_PRETENDING_TO_BE_EDMCOVERLAY = True
 
 _stopping = False
 
+def check_game_running():
+    return True
 
 class _Overlay:
     _instance = None
@@ -46,8 +48,10 @@ class _Overlay:
             self._conn = None
             self._overlays = {}
             self._updater = threading.Thread(target=self.__updater)
-            self._server = threading.Thread(target=self.__server)
-            self._server.start()
+
+            #when used inside EDMC we do not need server which looks buggy "address already in use"
+            #self._server = threading.Thread(target=self.__server)
+            #self._server.start()
 
     def __updater(self):
         timestep = 1
@@ -209,6 +213,8 @@ class Overlay:
     def send_shape(self, shapeid, shape, color, fill, x, y, w, h, ttl):
         return self._overlay.send_shape(self._token + shapeid, shape, color, fill, x, y, w, h, ttl)
 
+    def connect(self):
+        return True
 
 logger.debug("edmcoverlay2: instantiating overlay class")
 _the_overlay = _Overlay()
