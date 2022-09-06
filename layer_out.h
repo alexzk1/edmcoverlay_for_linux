@@ -17,9 +17,10 @@ public:
     virtual void draw(const draw_task::drawitem_t& drawitem) = 0;
 };
 
+//https://habr.com/ru/post/242639/
 template <typename T, typename... Args>
-inline T& getStaticObject(Args... args)
+inline T& getStaticObject(Args&&... args)
 {
-    static T obj(args...);
+    static T obj(std::forward<Args>(args)...);
     return obj;
 }

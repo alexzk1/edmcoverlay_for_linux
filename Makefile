@@ -1,6 +1,6 @@
 CC=gcc
 CXX=g++
-CXXFLAGS=-pedantic-errors -Wall -Werror -fstack-protector-all -O3 -march=native -std=c++14
+CXXFLAGS=-pedantic-errors -Wall -Werror -fstack-protector-all -O3 -march=native -std=c++17
 LDFLAGS=-lX11 -lXfixes -lXext
 all: overlay
 
