@@ -95,10 +95,13 @@ class _Overlay:
                 for id, overlay in self._overlays.items()
             ]).encode()
             self._send2bin(content)        
-        try:
-            self._send2bin("NEED_TO_STOP")
-        except:
-            pass  
+        
+        #i'm a bit lost with original logic... but this command will kill binary for sure
+        #so weird mix of "stop/run"
+        #try:
+         #   self._send2bin("NEED_TO_STOP")
+        #except:
+            #pass  
 
         logger.info("edmcoverlay2: updater stopping")
 
