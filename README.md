@@ -8,7 +8,7 @@
   - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay2`
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
   the `xorg-dev` package may be sufficient)
-- Run `make`
+- Run `cmake . & make`
 - In the EDMC settings, configure the size and position of the overlay
 
 ## Usage

@@ -1,6 +1,7 @@
 overlay
 CMakeLists.txt.user
 CMakeLists.txt.user.*
+Makefile
 __pycache__/
 *.o
 .cmake/
