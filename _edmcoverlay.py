@@ -221,7 +221,6 @@ class Overlay:
     def __init__(self) -> None:
         self._token = secrets.token_hex(4)
         self._overlay = _Overlay()
-        self.send_message(0, "class Overlay was created.", "green", 50,50)
         
     def send_raw(self, msg):
         if "msgid" in msg:
