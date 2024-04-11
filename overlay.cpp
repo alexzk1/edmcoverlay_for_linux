@@ -22,11 +22,13 @@ static void sighandler(int signum)
     }
 }
 
+//FYI: test string to send over "telnet 127.0.0.1 5020"
+//111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
 int main(int argc, char* argv[])
 {
     if (argc != 5)
     {
-        std::cout << "Usage: overlay X Y W H" << std::endl;
+        std::cerr << "Usage: overlay X Y W H" << std::endl;
         return 1;
     }
     auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
@@ -47,7 +49,7 @@ int main(int argc, char* argv[])
     });
 
     drawer.cleanFrame();
-    drawer.showVersionString("edmcoverlay2 overlay process: running!", "green");
+    drawer.showVersionString("Binary is awaiting commands from EDMC's plugins...", "green");
     drawer.flushFrame();
     //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
@@ -59,9 +61,11 @@ int main(int argc, char* argv[])
         const std::string request = read_response(*socket);
 
         if (request == stop_cmd)
+        {
             break;
+        }
 
-        //std::cout << "edmcoverlay2: overlay got request: " << request << std::endl;
+        //std::cout << "edmcoverlay2: overlay got request: \"" << request << "\"" <<std::endl;
 
         drawer.cleanFrame();
         //drawer.showVersionString("edmcoverlay2 running", "white");
@@ -82,7 +86,9 @@ int main(int argc, char* argv[])
             draws.clear();
         }
         for (const auto& drawitem : draws)
+        {
             drawer.draw(drawitem);
+        }
 
         drawer.flushFrame();
     }

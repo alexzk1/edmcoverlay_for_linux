@@ -8,14 +8,19 @@
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xfixes.h>
 
+#include <iostream>
+#include <string>
+#include <vector>
+
 // Events for normal windows
 constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask |
-        EnterWindowMask | LeaveWindowMask | KeyPressMask | KeyReleaseMask | KeymapStateMask;
+    EnterWindowMask | LeaveWindowMask | KeyPressMask | KeyReleaseMask | KeymapStateMask;
 
 constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | ButtonPressMask |
-        ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
+    ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
 
-constexpr static long event_mask = StructureNotifyMask | ExposureMask | PropertyChangeMask | EnterWindowMask |
+constexpr static long event_mask = StructureNotifyMask | ExposureMask | PropertyChangeMask |
+                                   EnterWindowMask |
                                    LeaveWindowMask | KeyRelease | ButtonPress | ButtonRelease | KeymapStateMask;
 
 class XPrivateAccess
@@ -30,8 +35,18 @@ public:
         createShapedWindow();
         single_gc = allocGlobGC();
         colors.reset(new MyXOverlayColorMap(g_display, g_screen));
-        normalfont = allocFont("9x15bold");
-        largefont = allocFont("12x24");
+
+        //FYI: dump installed fonts to console. It wants bitmap fonts (not ttf!).
+        std::cout << "Installed BITMAP fonts on this machine: "<<std::endl;
+        const auto fonts = listFonts();
+        for (const auto& fn : fonts)
+        {
+            std::cout << "\t\"" <<fn <<"\"" << std::endl;
+        }
+
+        //todo: you may want to change to something installed on your machine.
+        normalfont = allocFont("-misc-fixed-medium-r-semicondensed--13-100-100-100-c-60-iso8859-1");
+        largefont = allocFont("-misc-fixed-medium-r-semicondensed--13-100-100-100-c-60-iso8859-1");
     }
 
     ~XPrivateAccess()
@@ -65,10 +80,13 @@ public:
 
     opaque_ptr<_XGC> allocGlobGC() const
     {
-        return opaque_ptr<_XGC>(std::shared_ptr<_XGC>(XCreateGC(g_display, g_win, 0, nullptr), [this](auto * p)
+        return opaque_ptr<_XGC>(std::shared_ptr<_XGC>(XCreateGC(g_display, g_win, 0,
+                                nullptr), [this](auto * p)
         {
             if (p)
+            {
                 XFreeGC(g_display, p);
+            }
             XFlush(g_display);
         }));
     }
@@ -85,7 +103,9 @@ public:
         return opaque_ptr<XFontStruct>(std::shared_ptr<XFontStruct>(font, [this](XFontStruct * p)
         {
             if (p)
+            {
                 XFreeFont(g_display, p);
+            }
         }));
     }
 
@@ -111,12 +131,49 @@ public:
         XFlush(g_display);
     }
 private:
+    std::vector<std::string> listFonts(const std::string& aPattern="*") const
+    {
+        constexpr int kMaximumFontsCount = 10000;
+
+        int actualFontsCount = 0;
+        const std::shared_ptr<char*> fontlist(XListFonts(g_display,
+                                              aPattern.empty() ? "*" : aPattern.c_str(),
+                                              kMaximumFontsCount, &actualFontsCount),
+                                              [](auto ptr)
+        {
+            if (ptr)
+            {
+                XFreeFontNames(ptr);
+            }
+        });
+
+        std::vector<std::string> result;
+        result.reserve(actualFontsCount);
+
+        if (fontlist && actualFontsCount > 0)
+        {
+            char** arr = fontlist.get();
+            for (int i = 0; i < actualFontsCount; ++i)
+            {
+                result.emplace_back(*(arr + i));
+            }
+        }
+        else
+        {
+            std::cerr << "Could not list fonts or empty result." << std::endl;
+        }
+
+        return result;
+    }
+
     void openDisplay()
     {
         g_display = std::shared_ptr<Display>(XOpenDisplay(0), [](Display * p)
         {
             if (p)
+            {
                 XCloseDisplay(p);
+            }
         });
 
         if (!g_display)
@@ -130,7 +187,8 @@ private:
         if (!cmOwner)
         {
             std::cerr << "Composite manager is absent." << std::endl;
-            std::cerr << "Please check instructions: https://wiki.archlinux.org/index.php/Xcompmgr" << std::endl;
+            std::cerr << "Please check instructions: https://wiki.archlinux.org/index.php/Xcompmgr" <<
+                      std::endl;
             exit(-1);
         }
         g_screen    = DefaultScreen(g_display);
@@ -167,9 +225,11 @@ private:
         attr.colormap = g_colormap;
 
         //unsigned long mask = CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
-        unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask | CWWinGravity | CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
+        unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask | CWWinGravity |
+                             CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
 
-        g_win = XCreateWindow(g_display, root, window_xpos, window_ypos, window_width, window_height, 0, vinfo.depth, InputOutput, vinfo.visual, mask, &attr);
+        g_win = XCreateWindow(g_display, root, window_xpos, window_ypos, window_width, window_height, 0,
+                              vinfo.depth, InputOutput, vinfo.visual, mask, &attr);
 
         /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char *)myshape_bits, myshape_width, myshape_height); */
 
@@ -216,7 +276,8 @@ public:
 //*****************************XOverlayOutput***************************************************************************
 //**********************************************************************************************************************
 
-XOverlayOutput::XOverlayOutput(int window_xpos, int window_ypos, int window_width, int window_height):
+XOverlayOutput::XOverlayOutput(int window_xpos, int window_ypos, int window_width,
+                               int window_height):
     xserv(new XPrivateAccess(window_xpos, window_ypos, window_width, window_height))
 {
     cleanFrame();
@@ -274,7 +335,8 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
         /* cout << "edmcoverlay2: drawing a shape" << endl; */
         XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
 
-        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2, int y2)
+        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2,
+                             int y2)
         {
             XDrawLine(g_display, g_win, gc, xserv->SCALE_X(x1),
                       xserv->SCALE_Y(y1), xserv->SCALE_X(x2), xserv->SCALE_Y(y2));

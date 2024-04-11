@@ -60,7 +60,7 @@ public:
         ptr.reset();
     }
 
-    //this allows to cast to anything, darn unsafe. But macroses use it.
+    //This allows to cast to anything, darn unsafe. But macroses use it.
     template <typename Type>
     explicit operator Type() const
     {

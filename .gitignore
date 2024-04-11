@@ -1,4 +1,13 @@
-/overlay
-/CMakeLists.txt.user
+overlay
+CMakeLists.txt.user
+CMakeLists.txt.user.*
 __pycache__/
 *.o
+.cmake/
+.qtc/
+CMakeCache.txt
+CMakeCache.txt.prev
+CMakeFiles/
+Testing/
+cmake_install.cmake
+qtcsettings.cmake

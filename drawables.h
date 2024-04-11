@@ -74,38 +74,55 @@ namespace draw_task
 #undef LHDR
 #undef FUNC_PARAMS
 
-        draw_list res;
+        draw_list result;
+        const auto parseSingleObject = [&result](const auto& aObject)
+        {
+            drawitem_t drawitem;
+            for (const auto& kv : aObject.items())
+            {
+                //std::cout << "Key: [" << kv.key() << "]" << std::endl;
+
+                const auto it = processors.find(kv.key());
+                if (it != processors.end())
+                {
+                    const auto prev_mode  = drawitem.drawmode;
+                    it->second(kv.value(), drawitem);
+                    if (prev_mode != drawmode_t::idk && drawitem.drawmode != prev_mode)
+                    {
+                        std::cout << "Mode was double switched text/shape in the same JSON. Ignoring."  << std::endl;
+                        drawitem.drawmode = drawmode_t::idk;
+                        break;
+                    }
+                }
+                else
+                {
+                    std::cout << "bad key: \"" << kv.key() <<"\"" << std::endl;
+                }
+            }
+            if (drawitem.drawmode != draw_task::drawmode_t::idk)
+            {
+                result.push_back(std::move(drawitem));
+            }
+        };
+
+
         if (!src.empty())
         {
             const auto jsrc = json::parse(src);
-            for (const auto& arr_elem : jsrc)
+            if (jsrc.is_array())
             {
-                drawitem_t drawitem;
-                for (const auto& kv : arr_elem.items())
+                for (const auto& arr_elem : jsrc)
                 {
-
-                    //std::cout << "Key: [" << kv.key() << "]" << std::endl;
-
-                    const auto it = processors.find(kv.key());
-                    if (it != processors.end())
-                    {
-                        const auto prev_mode  = drawitem.drawmode;
-                        it->second(kv.value(), drawitem);
-                        if (prev_mode != drawmode_t::idk && drawitem.drawmode != prev_mode)
-                        {
-                            std::cout << "Mode was double switched text/shape in the same JSON. Ignoring."  << std::endl;
-                            drawitem.drawmode = drawmode_t::idk;
-                            break;
-                        }
-                    }
-                    else
-                        std::cout << "bad key: " << kv.key() << std::endl;
+                    parseSingleObject(arr_elem);
                 }
-                if (drawitem.drawmode != draw_task::drawmode_t::idk)
-                    res.push_back(std::move(drawitem));
+            }
+            else
+            {
+                parseSingleObject(jsrc);
             }
         }
-        return res;
+
+        return result;
     }
 
     //generates lines (x1;y1)-(x2;y2) and calls user callback with it

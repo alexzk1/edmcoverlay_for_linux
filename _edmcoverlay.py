@@ -143,76 +143,86 @@ class _Overlay:
         logger.info("edmcoverlay2: server stopping")
 
     def _stop(self):
-        global _stopping
-        logger.info("edmcoverlay2: stopping client threads")
-        _stopping = True
-        
-        if self._updater is not None and self._updater.is_alive():
-            logger.info("edmcoverlay2: waiting for updater to stop")
-            self._updater.join()
-
-        if self._server is not None and self._server.is_alive():
-            logger.info("edmcoverlay2: waiting for server to stop")
-            self._server.join()
+        with self._lock:
+            global _stopping
+            logger.info("edmcoverlay2: stopping client threads")
+            _stopping = True
             
-        logger.info("edmcoverlay2: all client threads stopped")
+            if self._updater is not None and self._updater.is_alive():
+                logger.info("edmcoverlay2: waiting for updater to stop")
+                self._updater.join()
+
+            if self._server is not None and self._server.is_alive():
+                logger.info("edmcoverlay2: waiting for server to stop")
+                self._server.join()
+                
+            logger.info("edmcoverlay2: all client threads stopped")
 
     def send_raw(self, msg):
-        # TODO
-        logger.debug("edmcoverlay2: send_raw %s", repr(msg))
-        self._overlays[msg.get("msgid") or msg.get("shapeid") or msg["id"]] = msg
-        if msg["ttl"] <= 0:
-            del self._overlays[msg.get("msgid") or msg.get("shapeid") or msg["id"]]
-        if not self._updater.is_alive():
-            self._updater.start()
+        with self._lock:
+            if _stopping: 
+                return
+            logger.debug("edmcoverlay2: send_raw %s", repr(msg))
+            self._overlays[msg.get("msgid") or msg.get("shapeid") or msg["id"]] = msg
+            if msg["ttl"] <= 0:
+                del self._overlays[msg.get("msgid") or msg.get("shapeid") or msg["id"]]
+            if not self._updater.is_alive():
+                self._updater.start()
 
     def send_message(self, msgid, text, color, x, y, ttl=4, size="normal"):
-        logger.debug("edmcoverlay2: send_message %s", repr([msgid, text, color, x, y, ttl, size]))
-        if not text or not color:
-            self._overlays.pop(msgid, None)
-        else:
-            assert color in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", color)
-            assert ttl > 0
-            assert size in ["normal", "large"]
-            self._overlays[msgid] = {
-                "text": text,
-                "color": color,
-                "x": x,
-                "y": y,
-                "ttl": ttl,
-                "size": size,
-            }
-        if not self._updater.is_alive():
-            self._updater.start()
+        with self._lock:
+            if _stopping: 
+                return
+            logger.debug("edmcoverlay2: send_message %s", repr([msgid, text, color, x, y, ttl, size]))
+            if not text or not color:
+                self._overlays.pop(msgid, None)
+            else:
+                assert color in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", color)
+                assert ttl > 0
+                assert size in ["normal", "large"]
+                self._overlays[msgid] = {
+                    "text": text,
+                    "color": color,
+                    "x": x,
+                    "y": y,
+                    "ttl": ttl,
+                    "size": size,
+                }
+            if not self._updater.is_alive():
+                self._updater.start()
 
     def send_shape(self, shapeid, shape, color, fill, x, y, w, h, ttl):
-        logger.debug("edmcoverlay2: send_shape %s", repr([shapeid, shape, color, fill, x, y, w, h, ttl]))
-        if not shape or not color:
-            self._overlays.pop(shapeid, None)
-        else:
-            assert shape in ["rect", "vect"]
-            assert color in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", color)
-            assert fill in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", fill)
-            assert ttl > 0
-            self._overlays[msgid] = {
-                "shape": shape,
-                "color": color,
-                "fill": fill,
-                "x": x,
-                "y": y,
-                "w": w,
-                "h": h,
-                "ttl": ttl,
-            }
-        if not self._updater.is_alive():
-            self._updater.start()
+        with self._lock:
+            if _stopping: 
+                return
+            logger.debug("edmcoverlay2: send_shape %s", repr([shapeid, shape, color, fill, x, y, w, h, ttl]))
+            if not shape or not color:
+                self._overlays.pop(shapeid, None)
+            else:
+                assert shape in ["rect", "vect"]
+                assert color in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", color)
+                assert fill in ["red", "yellow", "blue", "green", "black"] or re.match("#[0-9a-fA-F]{6}", fill)
+                assert ttl > 0
+                self._overlays[msgid] = {
+                    "shape": shape,
+                    "color": color,
+                    "fill": fill,
+                    "x": x,
+                    "y": y,
+                    "w": w,
+                    "h": h,
+                    "ttl": ttl,
+                }
+            if not self._updater.is_alive():
+                self._updater.start()
 
 
 class Overlay:
     def __init__(self) -> None:
         self._token = secrets.token_hex(4)
         self._overlay = _Overlay()
-
+        self.send_message(0, "class Overlay was created.", "green", 50,50)
+        
     def send_raw(self, msg):
         if "msgid" in msg:
             msg["msgid"] = self._token + msg["msgid"]
