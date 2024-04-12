@@ -69,3 +69,10 @@ public:
     }
 };
 
+template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
+auto AllocateOpaque(taDeAllocator aDeallocate, taAllocator aAllocate, taAllocArgs&& ...aArgs)
+{
+    return opaque_ptr<T>(std::shared_ptr<T>(aAllocate(std::forward<taAllocArgs>(aArgs)...),
+                                            std::forward<taDeAllocator>(aDeallocate)));
+}
+

@@ -7,9 +7,14 @@
 #include <X11/extensions/shape.h>
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xfixes.h>
+#include <X11/Xft/Xft.h>
 
+#include <cassert>
+#include <memory.h>
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
 
 // Events for normal windows
@@ -26,27 +31,38 @@ constexpr static long event_mask = StructureNotifyMask | ExposureMask | Property
 class XPrivateAccess
 {
 public:
+
+    template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
+    auto Allocate(taDeAllocator aDeallocate, taAllocator aAllocate, taAllocArgs&& ...aArgs) const
+    {
+        return AllocateOpaque<T>([this, dealloc = std::forward<taDeAllocator>(aDeallocate)](auto *ptr)
+        {
+            if (ptr)
+            {
+                dealloc(g_display, ptr);
+                flush();
+            }
+        }, std::forward<taAllocator>(aAllocate), std::forward<taAllocArgs>(aArgs)...);
+    }
+
+
     XPrivateAccess() = delete;
     XPrivateAccess(int window_xpos, int window_ypos, int window_width, int window_height):
         window_xpos(window_xpos), window_ypos(window_ypos),
         window_width(window_width), window_height(window_height)
     {
+        XftInit(nullptr);
+
         openDisplay();
         createShapedWindow();
+
         single_gc = allocGlobGC();
-        colors.reset(new MyXOverlayColorMap(g_display, g_screen));
 
-        //FYI: dump installed fonts to console. It wants bitmap fonts (not ttf!).
-        std::cout << "Installed BITMAP fonts on this machine: "<<std::endl;
-        const auto fonts = listFonts();
-        for (const auto& fn : fonts)
-        {
-            std::cout << "\t\"" <<fn <<"\"" << std::endl;
-        }
+        colors.reset(new MyXOverlayColorMap(g_display, g_screen, getAttributes()));
 
-        //todo: you may want to change to something installed on your machine.
-        normalfont = allocFont("-misc-fixed-medium-r-semicondensed--13-100-100-100-c-60-iso8859-1");
-        largefont = allocFont("-misc-fixed-medium-r-semicondensed--13-100-100-100-c-60-iso8859-1");
+        //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
+        normalfont = allocFont(20);
+        largefont  = allocFont(26);
     }
 
     ~XPrivateAccess()
@@ -56,57 +72,6 @@ public:
         colors.reset();
         single_gc.reset();
         g_display.reset();
-    }
-
-    int SCALE_W(int x) const
-    {
-        return x * window_width / 1280.0f;
-    }
-
-    int SCALE_H(int y) const
-    {
-        return y * window_height / 1024.0f;
-    }
-
-    int SCALE_X(int x) const
-    {
-        return SCALE_W(x) + 20;
-    }
-
-    int SCALE_Y(int y) const
-    {
-        return SCALE_H(y) + 40;
-    }
-
-    opaque_ptr<_XGC> allocGlobGC() const
-    {
-        return opaque_ptr<_XGC>(std::shared_ptr<_XGC>(XCreateGC(g_display, g_win, 0,
-                                nullptr), [this](auto * p)
-        {
-            if (p)
-            {
-                XFreeGC(g_display, p);
-            }
-            XFlush(g_display);
-        }));
-    }
-
-    opaque_ptr<XFontStruct> allocFont(const char* fontname) const
-    {
-        XFontStruct* font = XLoadQueryFont(g_display, fontname);
-        if (!font)
-        {
-            std::cerr << "Could not load font [" << fontname << "], using some fixed default." << std::endl;
-            font = XLoadQueryFont(g_display, "fixed");
-        }
-
-        return opaque_ptr<XFontStruct>(std::shared_ptr<XFontStruct>(font, [this](XFontStruct * p)
-        {
-            if (p)
-            {
-                XFreeFont(g_display, p);
-            }
-        }));
     }
 
     void cleanGC(GC gc) const
@@ -130,40 +95,60 @@ public:
     {
         XFlush(g_display);
     }
+
 private:
-    std::vector<std::string> listFonts(const std::string& aPattern="*") const
+    opaque_ptr<_XGC> allocGlobGC() const
     {
-        constexpr int kMaximumFontsCount = 10000;
+        return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
+    }
 
-        int actualFontsCount = 0;
-        const std::shared_ptr<char*> fontlist(XListFonts(g_display,
-                                              aPattern.empty() ? "*" : aPattern.c_str(),
-                                              kMaximumFontsCount, &actualFontsCount),
-                                              [](auto ptr)
+    //FYI: configurable font's families below.
+    opaque_ptr<XftFont> allocFont(const int aFontSize) const
+    {
+        const auto fontString = [&aFontSize](const std::string& family)
         {
-            if (ptr)
-            {
-                XFreeFontNames(ptr);
-            }
-        });
+            std::stringstream ss;
+            ss << family;
+            ss << ":size=" << aFontSize;
+            ss << ":antialias=true";
+            return ss.str();
+        };
 
-        std::vector<std::string> result;
-        result.reserve(actualFontsCount);
-
-        if (fontlist && actualFontsCount > 0)
+        static const std::vector<std::string> kFontsToTry =
         {
-            char** arr = fontlist.get();
-            for (int i = 0; i < actualFontsCount; ++i)
+            "Ubuntu Mono",
+            "Liberation Mono",
+            "DejaVu Sans Mono",
+            "Source Code Pro",
+            "Monospace",
+            "Sans Serif",
+            "Liberation Serif",
+            "Serif",
+            "Liberation Sans",
+            "Open Sans",
+        };
+
+        opaque_ptr<XftFont> font;
+
+        for (const auto& family: kFontsToTry)
+        {
+            const auto fontStr = fontString(family);
+            font = Allocate<XftFont>(XftFontClose, XftFontOpenName, g_display, g_screen,
+                                     fontStr.c_str());
+
+            if (font)
             {
-                result.emplace_back(*(arr + i));
+                std::cout << "edmcoverlay2: Allocated font: " << fontStr << std::endl;
+                break;
             }
         }
-        else
+
+        if (!font)
         {
-            std::cerr << "Could not list fonts or empty result." << std::endl;
+            throw std::runtime_error("edmcoverlay2: Could not load any font.");
         }
 
-        return result;
+        return font;
     }
 
     void openDisplay()
@@ -209,8 +194,7 @@ private:
         Window root    = DefaultRootWindow(g_display);
 
         auto vinfo = allocCType<XVisualInfo>();
-        XMatchVisualInfo(g_display, DefaultScreen(g_display), 32, TrueColor, &vinfo);
-        g_colormap = XCreateColormap(g_display, DefaultRootWindow(g_display), vinfo.visual, AllocNone);
+        XMatchVisualInfo(g_display, g_screen, 32, TrueColor, &vinfo);
 
         auto attr = allocCType<XSetWindowAttributes>();
         attr.background_pixmap = None;
@@ -222,7 +206,7 @@ private:
         attr.event_mask = BASIC_EVENT_MASK;
         attr.do_not_propagate_mask = NOT_PROPAGATE_MASK;
         attr.override_redirect = 1; // OpenGL > 0
-        attr.colormap = g_colormap;
+        attr.colormap = XCreateColormap(g_display, root, vinfo.visual, AllocNone);
 
         //unsigned long mask = CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
         unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask | CWWinGravity |
@@ -254,22 +238,74 @@ private:
         // Show the window
         XMapWindow(g_display, g_win);
     }
+
+    XWindowAttributes getAttributes() const
+    {
+        auto attrs = allocCType<XWindowAttributes>();
+        XGetWindowAttributes(g_display, g_win, &attrs);
+        return attrs;
+    }
+
 public:
     const int window_xpos;
     const int window_ypos;
     const int window_width;
     const int window_height;
+    std::shared_ptr<MyXOverlayColorMap> colors{nullptr};
 
     opaque_ptr<Display> g_display{nullptr};
+    int       g_screen{0};
+    Window    g_win{0};
     opaque_ptr<_XGC> single_gc{nullptr};
-    std::shared_ptr<MyXOverlayColorMap> colors{nullptr};
-    opaque_ptr<XFontStruct> normalfont{nullptr};
-    opaque_ptr<XFontStruct> largefont{nullptr};
 
-    int          g_screen{0};
-    Window       g_win{0};
-    Colormap g_colormap{0};
+    opaque_ptr<XftFont> normalfont{nullptr};
+    opaque_ptr<XftFont> largefont{nullptr};
 
+    void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
+                        int aX, int aY,
+                        const std::string& aString, bool aRectangle) const
+    {
+        //https://github.com/jsynacek/xft-example/blob/master/main.c
+
+        //fixme: most likelly it is wrong utf-8 length.
+        const int length = aString.length();
+        const FcChar8* str = reinterpret_cast<const FcChar8*>(aString.c_str());
+
+        if (!aFont)
+        {
+            throw std::runtime_error("Tried to draw string without font!!!");
+        }
+
+        if (aRectangle)
+        {
+            XGlyphInfo extents;
+            XftTextExtentsUtf8 (g_display,
+                                aFont,
+                                str,
+                                length,
+                                &extents);
+
+            const auto& black = colors->get("black");
+            XSetForeground(g_display, single_gc, black.pixel);
+            XFillRectangle(g_display, g_win, single_gc, aX, aY,
+                           extents.width, extents.height);
+        }
+
+        auto color = colors->getFontColor(aColor);
+        if (!color)
+        {
+            throw std::runtime_error("Tried to draw string without color!!!");
+        }
+        const auto attrs = getAttributes();
+        auto draw = AllocateOpaque<XftDraw>(XftDrawDestroy, XftDrawCreate, g_display, g_win,
+                                            attrs.visual,
+                                            attrs.colormap);
+        assert(XftDrawColormap(draw) == attrs.colormap);
+        assert(XftDrawVisual(draw)   == attrs.visual);
+
+        //XftDrawRect(draw, color, 50, 50, 250, 250);
+        XftDrawStringUtf8(draw, color, aFont, aX, aY + aFont->ascent, str, length);
+    }
 };
 
 //**********************************************************************************************************************
@@ -280,7 +316,7 @@ XOverlayOutput::XOverlayOutput(int window_xpos, int window_ypos, int window_widt
                                int window_height):
     xserv(new XPrivateAccess(window_xpos, window_ypos, window_width, window_height))
 {
-    cleanFrame();
+    xserv->cleanGC();
 }
 
 XOverlayOutput::~XOverlayOutput()
@@ -300,20 +336,7 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    const auto& gc = xserv->single_gc;
-    const auto& g_display = xserv->g_display;
-    const auto& g_win = xserv->g_win;
-    const auto& black = xserv->colors->get("black");
-
-    XSetForeground(g_display, gc, black.pixel);
-    const auto len = version.length();
-    const auto scalex = xserv->SCALE_X(0);
-
-
-    const int width = XTextWidth(xserv->normalfont, version.c_str(), len) + 5 + scalex;
-    XFillRectangle(g_display, g_win, gc, 0, 0, width, 50);
-    XSetForeground(g_display, gc, xserv->colors->get(color).pixel);
-    XDrawString(g_display, g_win, gc, scalex, xserv->SCALE_Y(0) - 10, version.c_str(), len);
+    xserv->drawUtf8String(xserv->normalfont, color, 0, 0, version, true);
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
@@ -325,10 +348,7 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
     if (drawitem.drawmode == draw_task::drawmode_t::text)
     {
         const auto& font = (drawitem.text.size == "large") ? xserv->largefont : xserv->normalfont;
-        XSetFont(g_display, gc, font->fid);
-        XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
-        XDrawString(g_display, g_win, gc, xserv->SCALE_X(drawitem.x), xserv->SCALE_Y(drawitem.y),
-                    drawitem.text.text.c_str(), strlen(drawitem.text.text.c_str()));
+        xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text, false);
     }
     else
     {
@@ -338,16 +358,15 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
         const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2,
                              int y2)
         {
-            XDrawLine(g_display, g_win, gc, xserv->SCALE_X(x1),
-                      xserv->SCALE_Y(y1), xserv->SCALE_X(x2), xserv->SCALE_Y(y2));
+            XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
         });
 
         if (!had_vec && drawitem.shape.shape == "rect")
         {
             /* cout << "edmcoverlay2: specifically, a rect" << endl; */
             // TODO distinct fill/edge colour
-            XDrawRectangle(g_display, g_win, gc, xserv->SCALE_X(drawitem.x),
-                           xserv->SCALE_Y(drawitem.y), xserv->SCALE_W(drawitem.shape.w), xserv->SCALE_H(drawitem.shape.h));
+            XDrawRectangle(g_display, g_win, gc, drawitem.x,
+                           drawitem.y, drawitem.shape.w, drawitem.shape.h);
         }
     }
 }

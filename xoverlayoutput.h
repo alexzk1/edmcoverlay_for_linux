@@ -2,7 +2,7 @@
 #include "layer_out.h"
 #include <memory>
 
-//have to use such a trick, so this H file does not have too many includes
+//Have to use such a trick, so this H file does not have too many includes
 class XPrivateAccess;
 
 class XOverlayOutput : public OutputLayer

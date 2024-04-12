@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     });
 
     drawer.cleanFrame();
-    drawer.showVersionString("Binary is awaiting commands from EDMC's plugins...", "green");
+    drawer.showVersionString("Binary is awaiting connection(s) from EDMC's plugins...", "green");
     drawer.flushFrame();
     //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
