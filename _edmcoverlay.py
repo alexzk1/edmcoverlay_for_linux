@@ -47,7 +47,7 @@ class _Overlay:
             self._port = port
             self._conn = None
             self._overlays = {}
-            self._updater = threading.Thread(target=self.__updater)
+            self._updater = threading.Thread(target=self.__updater_thread_body)
 
             #when used inside EDMC we do not need server which looks buggy "address already in use"
             self._server = None
@@ -66,7 +66,7 @@ class _Overlay:
             else:
                 raise
 
-    def __updater(self):
+    def __updater_thread_body(self):
         timestep = 1
         global _stopping
         logger.info("edmcoverlay2: updater running")
