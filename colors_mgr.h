@@ -108,7 +108,10 @@ public:
         //todo: add more colors here which can be recognized by string-name
         const static std::map<std::string, TRGBAColor> named_colors =
         {
+            //Those 2 colors used to clear the frame
             {"transparent", {0, 0, 0, 0}},
+            {"solid_white", {255, 255, 255, 255}},
+
             {"white", {255, 255, 255, kAlpha}},
             {"black", {0, 0, 0, kAlpha}},
             {"blue", {0, 0, 255, kAlpha}},

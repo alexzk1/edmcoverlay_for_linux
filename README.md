@@ -13,23 +13,13 @@
 
 ## Usage
 
-edmcoverlay2 aims to be 100% compatible with EDMC Overlay. Both the
-Python library and the local server (running on port 5010) are present,
-although for new plugins I highly recommend using the Python library
-where possible.
+edmcoverlay2 aims to be 100% compatible with EDMC Overlay. Python library is a wrapper to pass json to the compiled binary.
+Compiled binary can be used stand-alone for any other purposes as overlay. Binary listens on port 5010.
+TTF fonts are supported.
 
 Some features are not yet implemented, and there are likely to be bugs.
 
 ## Contributing
-
-Contributions are welcome!
-
-In particular, I'd like to move away from direct use of the X APIs where
-possible – the use of `XDrawString` means that there are very few
-available fonts, and the fonts that do exist have extremely limited
-glyph coverage. Probably something like Pango (presumably in conjunction
-with cairo) is the best option. Help in doing this would be greatly
-appreciated.
 
 Everyone interacting with this project is expected to abide by the terms
 of the Contributor Covenant Code of Conduct. Violations should be
@@ -38,6 +28,7 @@ reported to coc-enforcement-edmcoverlay2@sorrel.sh.
 ## Copyright
 
 Copyright © 2020 Ash Holland. Licensed under the GPL (version 3 only).
+Copyright © 2021-2024 Oleksiy Zakharov. Licensed under the GPL (version 3 only).
 
 edmcoverlay2 is heavily based on [X11 overlay][] by @ericek111 (GPLv3).
 

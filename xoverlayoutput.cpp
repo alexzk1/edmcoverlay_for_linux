@@ -51,6 +51,7 @@ public:
         window_xpos(window_xpos), window_ypos(window_ypos),
         window_width(window_width), window_height(window_height)
     {
+        XInitThreads();
         XftInit(nullptr);
 
         openDisplay();
@@ -78,7 +79,7 @@ public:
     {
         if (gc)
         {
-            const auto& white = colors->get("white");
+            const auto& white = colors->get("solid_white");
             const auto& transparent = colors->get("transparent");
             XSetBackground(g_display, gc, white.pixel);
             XSetForeground(g_display, gc, transparent.pixel);

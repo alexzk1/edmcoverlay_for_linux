@@ -98,8 +98,8 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     PAD_Y = 2
 
     f0 = nb.Frame(frame)
-    HyperlinkLabel(f0, text="edmcoverlay2", url="https://github.com/sersorrel/edmcoverlay2", background=nb.Label().cget('background'), underline=True).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
-    nb.Label(f0, text="by Ash Holland").grid(row=0, column=1, sticky=tk.W, padx=(0, PAD_X))
+    HyperlinkLabel(f0, text="edmcoverlay2", url="https://github.com/alexzk1/edmcoverlay2", background=nb.Label().cget('background'), underline=True).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
+    nb.Label(f0, text="by Ash Holland, Oleksiy Zakharov").grid(row=0, column=1, sticky=tk.W, padx=(0, PAD_X))
     f0.grid(sticky=tk.EW)
 
     ttk.Separator(frame, orient=tk.HORIZONTAL).grid(padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW)

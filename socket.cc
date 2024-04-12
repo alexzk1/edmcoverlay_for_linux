@@ -13,8 +13,11 @@
 // limitations under the License.
 
 #include "socket.hh"
+#include <sys/poll.h>
+#include <chrono>
 
-const int MAXPENDING = 5; // maximum outstanding connection requests
+constexpr int MAXPENDING = 15; // maximum outstanding connection requests
+constexpr std::chrono::milliseconds kAcceptPollTimeout(5000);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //wait()
@@ -185,10 +188,14 @@ int socket_t::read_all(void* _buf, int size_buf)
     {
         recv_size = ::recv(m_sockfd, buf, size_left, flags);
         if (-1 == recv_size)
+        {
             std::cout << "recv error: " << strerror(errno) << std::endl;
+        }
         //everything received, exit
         if (0 == recv_size)
+        {
             break;
+        }
         size_left -= recv_size;
         buf += recv_size;
         total_recv_size += recv_size;
@@ -214,7 +221,9 @@ int socket_t::hostname_to_ip(const char* host_name, char* ip)
     hints.ai_protocol = IPPROTO_TCP;
 
     if ((rv = getaddrinfo(host_name, "http", &hints, &servinfo)) != 0)
+    {
         return 1;
+    }
 
     for (p = servinfo; p != NULL; p = p->ai_next)
     {
@@ -236,7 +245,9 @@ tcp_server_t::tcp_server_t(const unsigned short server_port)
 #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
+    {
         exit(1);
+    }
 #endif
     sockaddr_in server_addr; // local address
 
@@ -310,13 +321,15 @@ socket_t tcp_server_t::accept()
 
     // wait for a client to connect
     if ((fd = ::accept(m_sockfd, (struct sockaddr*) & addr_client, &len_addr)) < 0)
+    {
         std::cout << "accept error " << std::endl;
+    }
 
     socket_t socket(fd, addr_client);
     return socket;
 }
 
-std::shared_ptr<socket_t> tcp_server_t::accept_autoclose()
+std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t is_interrupted_ptr)
 {
     sockaddr_in addr_client; // client address
     socketfd_t fd; //socket descriptor
@@ -329,18 +342,38 @@ std::shared_ptr<socket_t> tcp_server_t::accept_autoclose()
     // set length of client address structure (in-out parameter)
     len_addr = sizeof(addr_client);
 
-    // wait for a client to connect
-    if ((fd = ::accept(m_sockfd, (struct sockaddr*) & addr_client, &len_addr)) < 0)
-        std::cout << "accept error " << std::endl;
+    //set of socket descriptors
+    struct pollfd fds[1];
+    memset(fds, 0, sizeof(fds));
 
-    return std::shared_ptr<socket_t>(new socket_t(fd, addr_client), [](socket_t *p)
+    fds[0].fd = m_sockfd;
+    fds[0].events = POLLIN;
+
+    while(!(*is_interrupted_ptr))
     {
-        if (p)
+        if (poll(fds, 1, kAcceptPollTimeout.count()) < 1 || fds[0].revents != POLLIN)
         {
-            p->close();
-            delete p;
+            continue;
         }
-    });
+        fds[0].revents = 0;
+
+        // wait for a client to connect
+        if ((fd = ::accept(m_sockfd, (struct sockaddr*) & addr_client, &len_addr)) < 0)
+        {
+            std::cerr << "accept error " << std::endl;
+        }
+
+        return std::shared_ptr<socket_t>(new socket_t(fd, addr_client), [](socket_t *p)
+        {
+            if (p)
+            {
+                p->close();
+                delete p;
+            }
+        });
+    }
+
+    return nullptr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -353,7 +386,9 @@ tcp_client_t::tcp_client_t()
 #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
+    {
         exit(1);
+    }
 #endif
 }
 
@@ -364,7 +399,9 @@ tcp_client_t::tcp_client_t(const char* host_name, const unsigned short server_po
 #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
+    {
         exit(1);
+    }
 #endif
 
     char server_ip[100];

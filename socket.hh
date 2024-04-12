@@ -44,6 +44,8 @@
 #include <ctime>
 #include <memory>
 
+#include "runners.h"
+
 //multi platform socket descriptor
 #if _WIN32
     typedef SOCKET socketfd_t;
@@ -88,7 +90,7 @@ class tcp_server_t : public socket_t
 public:
     tcp_server_t(const unsigned short server_port);
     socket_t accept();
-    std::shared_ptr<socket_t> accept_autoclose();
+    std::shared_ptr<socket_t> accept_autoclose(utility::runnerint_t is_interrupted_ptr);
     ~tcp_server_t();
 };
 

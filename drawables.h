@@ -1,12 +1,41 @@
 #pragma once
-#include <string>
+
+#include <atomic>
+#include <chrono>
 #include <iostream>
-#include <list>
+#include <sstream>
+#include <string>
+#include <map>
+
 #include "json.hpp"
 
 namespace draw_task
 {
     using json = nlohmann::json;
+
+    struct timestamp_t
+    {
+        std::chrono::steady_clock::time_point created_at{std::chrono::steady_clock::now()};
+        std::chrono::seconds ttl{-1};
+
+        bool isValid() const
+        {
+            //original: https://github.com/inorton/EDMCOverlay/issues/42
+            return ttl < std::chrono::seconds::zero()
+                   || std::chrono::steady_clock::now() <= created_at + ttl;
+        }
+
+        bool isExpired() const
+        {
+            return !isValid();
+        }
+
+        timestamp_t& operator=(int aSeconds)
+        {
+            ttl = std::chrono::seconds(aSeconds);
+            return *this;
+        }
+    };
 
     enum class drawmode_t
     {
@@ -17,7 +46,11 @@ namespace draw_task
 
     struct drawitem_t
     {
-        drawmode_t drawmode{drawmode_t::idk};
+        timestamp_t ttl;
+        std::string id;
+
+        drawmode_t  drawmode{drawmode_t::idk};
+
         // common
         int x{0};
         int y{0};
@@ -39,9 +72,14 @@ namespace draw_task
             int h{0};
             json vect;
         } shape;
+
+        bool isExpired() const
+        {
+            return ttl.isExpired();
+        }
     };
 
-    using draw_list = std::list<drawitem_t>;
+    using draw_items_t = std::map<std::string, drawitem_t>;
 
     /* text message: id, text, color, x, y, ttl, size
     * shape message: id, shape, color, fill, x, y, w, h, ttl
@@ -49,7 +87,7 @@ namespace draw_task
     * shape: "rect"
     * size: "normal", "large"
     */
-    inline draw_list parseJsonString(const std::string& src)
+    inline draw_items_t parseJsonString(const std::string& src)
     {
         //hate chained IFs, lets do it more readable....
 #define FUNC_PARAMS const json& node, drawitem_t& drawitem
@@ -67,14 +105,17 @@ namespace draw_task
             {"fill", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.fill = NSTR;}},
             {"w", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.w = NINT;}},
             {"h", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.h = NINT;}},
-            {"vector", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.vect = node;}}
+            {"vector", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.vect = node;}},
+
+            {"ttl", LHDR{drawitem.ttl = NINT;}},
+            {"id", LHDR{drawitem.id = NSTR;}},
         };
 #undef NINT
 #undef NSTR
 #undef LHDR
 #undef FUNC_PARAMS
 
-        draw_list result;
+        draw_items_t result;
         const auto parseSingleObject = [&result](const auto& aObject)
         {
             drawitem_t drawitem;
@@ -101,7 +142,20 @@ namespace draw_task
             }
             if (drawitem.drawmode != draw_task::drawmode_t::idk)
             {
-                result.push_back(std::move(drawitem));
+                if (drawitem.id.empty())
+                {
+                    static const std::string prefix = "AUTOID:";
+                    static std::atomic<std::size_t> id{0};
+                    drawitem.id = prefix + std::to_string(id++);
+                    if (drawitem.ttl.ttl < std::chrono::seconds::zero())
+                    {
+                        //We do not allow messages without ID stay forever.
+                        //Because without ID it cannot be overwritten / cleansed.
+                        drawitem.ttl.ttl = std::chrono::seconds(60);
+                    }
+                }
+
+                result[drawitem.id] = drawitem;
             }
         };
 
