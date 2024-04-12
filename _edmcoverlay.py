@@ -48,7 +48,7 @@ class _Overlay:
 
     def _send_raw_text(self, inpstr):
         bstr = bytes(inpstr,'UTF-8')
-        for retries in range(1, 3):            
+        for retries in range(1, 7):
             try:                
                 with self._lock:
                     conn = socket.socket()

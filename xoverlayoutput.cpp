@@ -62,8 +62,10 @@ public:
         colors.reset(new MyXOverlayColorMap(g_display, g_screen, getAttributes()));
 
         //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
-        normalfont = allocFont(20);
-        largefont  = allocFont(26);
+        //From the other side, existing plugins send fixed distance between strings.
+        //This one looks okish for Canon's
+        normalfont = allocFont(16);
+        largefont  = allocFont(22);
     }
 
     ~XPrivateAccess()

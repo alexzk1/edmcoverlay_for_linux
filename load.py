@@ -70,6 +70,7 @@ def stop_overlay():
 
 def plugin_start3(plugin_dir):
     logger.info("edmcoverlay2: plugin start!")
+    start_overlay()
     return "edmcoverlay2"
 
 

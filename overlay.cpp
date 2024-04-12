@@ -34,6 +34,8 @@ static void sighandler(int signum)
 //111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
 int main(int argc, char* argv[])
 {
+    using namespace std::chrono_literals;
+
     if (argc != 5)
     {
         std::cerr << "Usage: overlay X Y W H" << std::endl;
@@ -56,6 +58,7 @@ int main(int argc, char* argv[])
     std::mutex mut;
     draw_task::draw_items_t allDraws;
 
+    //FIXME: replace all that by boost:asio
     serverThread = utility::startNewRunner([&thread_stopped_loop, &mut,
                                             &allDraws](auto should_close_ptr)
     {
@@ -70,6 +73,7 @@ int main(int argc, char* argv[])
             }
         });
 
+        std::atomic<std::int64_t> detachedCounter{0};
         while (!(*should_close_ptr))
         {
             auto socket = server->accept_autoclose(should_close_ptr);
@@ -78,38 +82,57 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            const std::string request = read_response(*socket);
-            //std::cout << "Request: " << request << std::endl;
+            //Let the while() continue and start to listen back ASAP.
+            ++detachedCounter;
+            std::thread([socket = std::move(socket), should_close_ptr, &allDraws, &mut, &detachedCounter]()
+            {
+                try
+                {
+                    const std::string request = read_response(*socket);
+                    //std::cout << "Request: " << request << std::endl;
 
-            if (request == stop_cmd)
-            {
-                break;
-            }
+                    if (request == stop_cmd)
+                    {
+                        *should_close_ptr = true;
+                    }
+                    else
+                    {
+                        draw_task::draw_items_t incoming_draws;
+                        try
+                        {
+                            incoming_draws = draw_task::parseJsonString(request);
+                        }
+                        catch (std::exception& e)
+                        {
+                            std::cerr << "Json parse failed with message: " << e.what() << std::endl;
+                            incoming_draws.clear();
+                        }
+                        catch (...)
+                        {
+                            std::cerr << "Json parse failed with uknnown reason." << std::endl;
+                            incoming_draws.clear();
+                        }
 
-            draw_task::draw_items_t incoming_draws;
-            try
-            {
-                incoming_draws = draw_task::parseJsonString(request);
-            }
-            catch (std::exception& e)
-            {
-                std::cerr << "Json parse failed with message: " << e.what() << std::endl;
-                incoming_draws.clear();
-            }
-            catch (...)
-            {
-                std::cerr << "Json parse failed with uknnown reason." << std::endl;
-                incoming_draws.clear();
-            }
-
-            if (!incoming_draws.empty())
-            {
-                std::lock_guard grd(mut);
-                incoming_draws.merge(allDraws);
-                allDraws.clear();
-                std::swap(allDraws, incoming_draws);
-            }
+                        if (!incoming_draws.empty())
+                        {
+                            std::lock_guard grd(mut);
+                            incoming_draws.merge(allDraws);
+                            allDraws.clear();
+                            std::swap(allDraws, incoming_draws);
+                        }
+                    }
+                }
+                catch(...)
+                {
+                }
+                --detachedCounter;
+            }).detach();
         };
+
+        while (detachedCounter > 0)
+        {
+            std::this_thread::sleep_for(100ms);
+        }
 
         thread_stopped_loop = true;
     });
@@ -117,7 +140,6 @@ int main(int argc, char* argv[])
     //Main thread loop. It draws and manages remove of the expired items.
     while (!thread_stopped_loop)
     {
-        using namespace std::chrono_literals;
         std::this_thread::sleep_for(500ms);
 
         drawer.cleanFrame();
