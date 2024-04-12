@@ -35,7 +35,7 @@ class _Overlay:
                 cls._instance = object.__new__(cls, *args, **kwargs)
             return cls._instance
 
-    def __init__(self, server="127.0.0.1", port=5020):
+    def __init__(self, server="127.0.0.1", port=5010):
         logger.info("edmcoverlay2: hiiiiiii")
         with self._lock:
             if self._initialised:
@@ -105,42 +105,6 @@ class _Overlay:
 
         logger.info("edmcoverlay2: updater stopping")
 
-    def __server(self):
-        # Pretend to be the EDMCOverlay server.
-        global _stopping
-        logger.info("edmcoverlay2: server running")
-        self._sock = socket.socket()
-        self._sock.bind(("127.0.0.1", 5010))
-        self._sock.listen()
-        self._sock.settimeout(2)
-        while not _stopping:
-            try:
-                sock, _ = self._sock.accept()
-            except socket.timeout:
-                continue
-            logger.debug("edmcoverlay2: server got connection")
-            data = b""
-            while True:
-                chunk = sock.recv(1024)
-                if not chunk:
-                    break
-                data += chunk
-                objects = data.split(b"\n")
-                for obj in objects[:-1]:
-                    try:
-                        msg = json.loads(obj)
-                        self.send_raw(msg)
-                    except Exception as e:
-                        print('Got invalid JSON incoming to python module.')
-                        print(e)
-
-                data = objects[-1]
-            sock.close()
-            if data:
-                msg = json.loads(data)
-                # TODO
-                self.send_raw(msg)
-        logger.info("edmcoverlay2: server stopping")
 
     def _stop(self):
         with self._lock:

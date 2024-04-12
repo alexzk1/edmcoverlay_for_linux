@@ -9,7 +9,7 @@
 #include "drawables.h"
 #include "xoverlayoutput.h"
 
-unsigned short port = 5020;
+constexpr unsigned short port = 5010;
 
 
 static void sighandler(int signum)
@@ -22,7 +22,7 @@ static void sighandler(int signum)
     }
 }
 
-//FYI: test string to send over "telnet 127.0.0.1 5020"
+//FYI: test string to send over "telnet 127.0.0.1 5010"
 //111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
 int main(int argc, char* argv[])
 {
