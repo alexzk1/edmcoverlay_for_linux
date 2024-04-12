@@ -119,4 +119,8 @@ class Overlay:
 
 logger.debug("edmcoverlay2: instantiating overlay class")
 _the_overlay = _Overlay()
+
+def RequestBinaryToStop():
+    _the_overlay._stop()
+
 logger.debug("edmcoverlay2: overlay class instantiated")

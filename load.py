@@ -17,12 +17,10 @@ logger = logging.getLogger(f"{appname}.{plugin_name}")
 
 
 logger.debug("edmcoverlay2: loading plugin, importing lib")
-#import edmcoverlay
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-#import edmcoverlay._edmcoverlay
-import _edmcoverlay
+import edmcoverlay
 
 overlay_process: Popen = None
 xpos_var: tk.IntVar
@@ -51,7 +49,7 @@ def start_overlay():
         overlay_process = Popen([find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)])
 
         time.sleep(2)
-        tmp = _edmcoverlay.Overlay()
+        tmp = edmcoverlay.Overlay()
         tmp.send_message("edmcintro", "EDMC Ready", "#00FFFF", 30, 165, ttl=6)
     else:
         logger.warning("edmcoverlay2: not starting overlay, already running")
@@ -87,7 +85,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 def plugin_stop():
     global overlay_process
     logger.info("edmcoverlay2: exiting plugin")    
-    _edmcoverlay._the_overlay._stop()
+    edmcoverlay.RequestBinaryToStop()
     stop_overlay()
 
 

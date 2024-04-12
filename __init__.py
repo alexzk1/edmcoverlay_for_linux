@@ -1,1 +1,1 @@
-from ._edmcoverlay import *
+from .edmcoverlay import *
