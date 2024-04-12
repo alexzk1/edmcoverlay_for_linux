@@ -17,6 +17,8 @@ edmcoverlay2 aims to be 100% compatible with EDMC Overlay. Python library is a w
 Compiled binary can be used stand-alone for any other purposes as overlay. Binary listens on port 5010.
 TTF fonts are supported.
 
+![ttf_example](https://github.com/alexzk1/edmcoverlay2/assets/4589845/60120533-ee49-4b47-9804-4cd3075d2426)
+
 Some features are not yet implemented, and there are likely to be bugs.
 
 ## Contributing
