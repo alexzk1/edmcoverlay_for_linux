@@ -11,15 +11,12 @@ logger.debug("edmcoverlay2: lib loaded")
 
 import errno
 import json
-import re
 import socket
 import threading
 import time
+import random
+
 from functools import wraps
-
-IS_PRETENDING_TO_BE_EDMCOVERLAY = True
-
-_stopping = False
 
 def check_game_running():
     return True
@@ -51,17 +48,21 @@ class _Overlay:
 
     def _send_raw_text(self, inpstr):
         bstr = bytes(inpstr,'UTF-8')
-        with self._lock:
+        for retries in range(1, 3):            
             try:                
-                conn = socket.socket()
-                conn.connect((self._host, self._port))
-                conn.send(str(len(bstr)).encode() + b"#" + bstr)
-                conn.close()
+                with self._lock:
+                    conn = socket.socket()
+                    conn.connect((self._host, self._port))
+                    conn.send(str(len(bstr)).encode() + b"#" + bstr)
+                    conn.close()
+                    break
             except socket.error as e:
                 if e.errno == errno.ECONNREFUSED:
-                    logger.warning("edmcoverlay2: conn refused")
+                    logger.warning("edmcoverlay2: conn refused times %i", retries)
+                    time.sleep(random.randint(200, 450) / 1000.0)
                 else:
                     raise
+        return None
 
     def _send2bin(self, msg):
         self._send_raw_text(inpstr = json.dumps(msg))
@@ -74,6 +75,7 @@ class _Overlay:
             "y": y,
             "ttl": ttl,
             "size": size,
+            "id": msgid,
         }
         self._send2bin(msg = msg)
             
@@ -88,19 +90,24 @@ class _Overlay:
             "w": w,
             "h": h,
             "ttl": ttl,
+            "id": shapeid,
         }
         self._send2bin(msg = msg)
           
-
-
 class Overlay:
     def __init__(self) -> None:
         self._token = secrets.token_hex(4)
         self._overlay = _Overlay()
-        
-    def send_raw(self, msg):        
-        return self._overlay._send_raw_text(inpstr = msg)
-
+    
+    def send_raw(self, msg):
+        if "msgid" in msg:
+            msg["msgid"] = self._token + str(msg["msgid"])
+        if "shapeid" in msg:
+            msg["shapeid"] = self._token + str(msg["shapeid"])
+        if "id" in msg:
+            msg["id"] = self._token + msg["id"]
+        return self._overlay._send2bin(msg)
+           
     def send_message(self, msgid, text, color, x, y, ttl=4, size="normal"):
         return self._overlay.send_message(self._token + msgid, text, color, x, y, ttl=ttl, size=size)
 

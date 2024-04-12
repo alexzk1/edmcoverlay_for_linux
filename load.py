@@ -10,7 +10,7 @@ from config import appname, config
 import myNotebook as nb
 import plug
 from ttkHyperlinkLabel import HyperlinkLabel
-
+import time
 
 plugin_name = Path(__file__).parent.name
 logger = logging.getLogger(f"{appname}.{plugin_name}")
@@ -41,14 +41,18 @@ def find_overlay_binary() -> Path:
 
 
 def start_overlay():
-    global overlay_process
+    global overlay_process 
     if not overlay_process:
         logger.info("edmcoverlay2: starting overlay")
-        xpos = int(config.get("edmcoverlay2_xpos") or 0)
-        ypos = int(config.get("edmcoverlay2_ypos") or 0)
-        width = int(config.get("edmcoverlay2_width") or 1920)
-        height = int(config.get("edmcoverlay2_height") or 1080)
+        xpos = config.get_int("edmcoverlay2_xpos") or 0
+        ypos = config.get_int("edmcoverlay2_ypos") or 0
+        width = config.get_int("edmcoverlay2_width") or 1920
+        height = config.get_int("edmcoverlay2_height") or 1080
         overlay_process = Popen([find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)])
+
+        time.sleep(2)
+        tmp = _edmcoverlay.Overlay()
+        tmp.send_message("edmcintro", "EDMC Ready", "#00FFFF", 30, 165, ttl=6)
     else:
         logger.warning("edmcoverlay2: not starting overlay, already running")
 
@@ -88,10 +92,10 @@ def plugin_stop():
 
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     global xpos_var, ypos_var, width_var, height_var
-    xpos_var = tk.IntVar(value=int(config.get("edmcoverlay2_xpos") or 0))
-    ypos_var = tk.IntVar(value=int(config.get("edmcoverlay2_ypos") or 0))
-    width_var = tk.IntVar(value=int(config.get("edmcoverlay2_width") or 1920))
-    height_var = tk.IntVar(value=int(config.get("edmcoverlay2_height") or 1080))
+    xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
+    ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
+    width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
+    height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
     frame = nb.Frame(parent)
     frame.columnconfigure(0, weight=1)
     PAD_X = 10
@@ -140,7 +144,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
             logger.warning("Bad config value for %s: %r", name, val)
         else:
             try:
-                old_val = int(config.get(f"edmcoverlay2_{name}"))
+                old_val = config.get_int(f"edmcoverlay2_{name}")
             except (TypeError, ValueError):
                 pass
             else:

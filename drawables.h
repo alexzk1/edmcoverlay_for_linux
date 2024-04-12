@@ -109,6 +109,8 @@ namespace draw_task
 
             {"ttl", LHDR{drawitem.ttl = NINT;}},
             {"id", LHDR{drawitem.id = NSTR;}},
+            {"msgid", LHDR{drawitem.id = NSTR;}},
+            {"shapeid", LHDR{drawitem.id = NSTR;}},
         };
 #undef NINT
 #undef NSTR
