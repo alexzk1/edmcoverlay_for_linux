@@ -21,15 +21,10 @@ TTF fonts are supported.
 
 Some features are not yet implemented, and there are likely to be bugs.
 
-## Contributing
-
-Everyone interacting with this project is expected to abide by the terms
-of the Contributor Covenant Code of Conduct. Violations should be
-reported to coc-enforcement-edmcoverlay2@sorrel.sh.
-
 ## Copyright
 
 Copyright © 2020 Ash Holland. Licensed under the GPL (version 3 only).
+
 Copyright © 2021-2024 Oleksiy Zakharov. Licensed under the GPL (version 3 only).
 
 edmcoverlay2 is heavily based on [X11 overlay][] by @ericek111 (GPLv3).
