@@ -1,16 +1,16 @@
 """Totally definitely EDMCOverlay."""
 
 import logging
+import time
+import tkinter as tk
 from pathlib import Path
 from subprocess import Popen
-import tkinter as tk
 from tkinter import ttk
 
-from config import appname, config
 import myNotebook as nb
 import plug
+from config import appname, config
 from ttkHyperlinkLabel import HyperlinkLabel
-import time
 
 plugin_name = Path(__file__).parent.name
 logger = logging.getLogger(f"{appname}.{plugin_name}")
@@ -19,6 +19,7 @@ logger = logging.getLogger(f"{appname}.{plugin_name}")
 logger.debug("edmcoverlay2: loading plugin, importing lib")
 import os
 import sys
+
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import edmcoverlay
 
@@ -39,14 +40,16 @@ def find_overlay_binary() -> Path:
 
 
 def start_overlay():
-    global overlay_process 
+    global overlay_process
     if not overlay_process:
         logger.info("edmcoverlay2: starting overlay")
         xpos = config.get_int("edmcoverlay2_xpos") or 0
         ypos = config.get_int("edmcoverlay2_ypos") or 0
         width = config.get_int("edmcoverlay2_width") or 1920
         height = config.get_int("edmcoverlay2_height") or 1080
-        overlay_process = Popen([find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)])
+        overlay_process = Popen(
+            [find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)]
+        )
 
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
@@ -84,7 +87,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
 def plugin_stop():
     global overlay_process
-    logger.info("edmcoverlay2: exiting plugin")    
+    logger.info("edmcoverlay2: exiting plugin")
     edmcoverlay.RequestBinaryToStop()
     stop_overlay()
 
@@ -101,30 +104,66 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     PAD_Y = 2
 
     f0 = nb.Frame(frame)
-    HyperlinkLabel(f0, text="edmcoverlay2", url="https://github.com/alexzk1/edmcoverlay2", background=nb.Label().cget('background'), underline=True).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
-    nb.Label(f0, text="by Ash Holland, Oleksiy Zakharov").grid(row=0, column=1, sticky=tk.W, padx=(0, PAD_X))
+    HyperlinkLabel(
+        f0,
+        text="edmcoverlay2",
+        url="https://github.com/alexzk1/edmcoverlay2",
+        background=nb.Label().cget("background"),
+        underline=True,
+    ).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
+    nb.Label(f0, text="by Ash Holland, Oleksiy Zakharov").grid(
+        row=0, column=1, sticky=tk.W, padx=(0, PAD_X)
+    )
     f0.grid(sticky=tk.EW)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW)
+    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
+        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
+    )
 
     f1 = nb.Frame(frame)
-    nb.Label(f1, text="Overlay configuration:").grid(row=0, column=0, columnspan=3, padx=PAD_X, pady=PAD_Y, sticky=tk.W)
-    nb.Label(f1, text="X position").grid(row=1, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E)
-    nb.Entry(f1, textvariable=xpos_var).grid(row=1, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W)
-    nb.Label(f1, text="Y position").grid(row=2, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E)
-    nb.Entry(f1, textvariable=ypos_var).grid(row=2, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W)
-    nb.Label(f1, text="Width").grid(row=3, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E)
-    nb.Entry(f1, textvariable=width_var).grid(row=3, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W)
-    nb.Label(f1, text="Height").grid(row=4, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E)
-    nb.Entry(f1, textvariable=height_var).grid(row=4, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W)
+    nb.Label(f1, text="Overlay configuration:").grid(
+        row=0, column=0, columnspan=3, padx=PAD_X, pady=PAD_Y, sticky=tk.W
+    )
+    nb.Label(f1, text="X position").grid(
+        row=1, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
+    )
+    nb.Entry(f1, textvariable=xpos_var).grid(
+        row=1, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
+    )
+    nb.Label(f1, text="Y position").grid(
+        row=2, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
+    )
+    nb.Entry(f1, textvariable=ypos_var).grid(
+        row=2, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
+    )
+    nb.Label(f1, text="Width").grid(
+        row=3, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
+    )
+    nb.Entry(f1, textvariable=width_var).grid(
+        row=3, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
+    )
+    nb.Label(f1, text="Height").grid(
+        row=4, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
+    )
+    nb.Entry(f1, textvariable=height_var).grid(
+        row=4, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
+    )
     f1.grid(sticky=tk.EW)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW)
+    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
+        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
+    )
 
     f2 = nb.Frame(frame)
-    nb.Label(f2, text="Manual overlay controls:").grid(row=0, column=0, padx=PAD_X, pady=PAD_Y)
-    nb.Button(f2, text="Start overlay", command=lambda: start_overlay()).grid(row=0, column=1, padx=PAD_X, pady=PAD_Y)
-    nb.Button(f2, text="Stop overlay", command=lambda: stop_overlay()).grid(row=0, column=2, padx=PAD_X, pady=PAD_Y)
+    nb.Label(f2, text="Manual overlay controls:").grid(
+        row=0, column=0, padx=PAD_X, pady=PAD_Y
+    )
+    nb.Button(f2, text="Start overlay", command=lambda: start_overlay()).grid(
+        row=0, column=1, padx=PAD_X, pady=PAD_Y
+    )
+    nb.Button(f2, text="Stop overlay", command=lambda: stop_overlay()).grid(
+        row=0, column=2, padx=PAD_X, pady=PAD_Y
+    )
     f2.grid(sticky=tk.EW)
 
     return frame
@@ -136,7 +175,12 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     width = width_var.get()
     height = height_var.get()
     change = False
-    for name, val in [("xpos", xpos), ("ypos", ypos), ("width", width), ("height", height)]:
+    for name, val in [
+        ("xpos", xpos),
+        ("ypos", ypos),
+        ("width", width),
+        ("height", height),
+    ]:
         try:
             assert int(val) >= 0
         except (ValueError, AssertionError):

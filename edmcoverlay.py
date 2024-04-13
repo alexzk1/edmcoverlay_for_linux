@@ -1,14 +1,10 @@
+from pathlib import Path
+from config import appname
+from functools import wraps
+
 import logging
 import secrets
-from pathlib import Path
-
-from config import appname
-
-plugin_name = Path(__file__).parent.name
-logger = logging.getLogger(f"{appname}.{plugin_name}")
-
-logger.debug("edmcoverlay2: lib loaded")
-
+import inspect
 import errno
 import json
 import socket
@@ -16,41 +12,44 @@ import threading
 import time
 import random
 
-from functools import wraps
 
+
+plugin_name = Path(__file__).parent.name
+logger = logging.getLogger(f"{appname}.{plugin_name}")
+logger.debug("edmcoverlay2: lib loaded")
 def check_game_running():
     return True
 
-class _Overlay:
-    _instance = None
-    _lock = threading.Lock()
-    _initialised = False
+class _OverlayImpl:
+    __instance = None
+    __lock = threading.Lock()
+    __initialised: bool = False
 
     def __new__(cls, *args, **kwargs):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = object.__new__(cls, *args, **kwargs)
-            return cls._instance
+        with cls.__lock:
+            if cls.__instance is None:
+                cls.__instance = object.__new__(cls, *args, **kwargs)
+            return cls.__instance
 
-    def __init__(self, server="127.0.0.1", port=5010):
-        logger.info("edmcoverlay2: hiiiiiii")
-        with self._lock:
-            if self._initialised:
+    def __init__(self, server: str = "127.0.0.1", port: int = 5010):
+        logger.info("edmcoverlay2: loaded python plugin.")
+        with self.__lock:
+            if self.__initialised:
                 logger.debug("edmcoverlay2: skipping init")
                 return
             logger.debug("edmcoverlay2: init")
-            self._initialised = True
+            self.__initialised = True
             self._host = server
-            self._port = port        
+            self._port = port
 
     def _stop(self):
-        self._send_raw_text(inpstr = "NEED_TO_STOP")
+        self._send_raw_text("NEED_TO_STOP")
 
-    def _send_raw_text(self, inpstr):
-        bstr = bytes(inpstr,'UTF-8')
+    def _send_raw_text(self, inpstr: str):
+        bstr = bytes(inpstr, "UTF-8")
         for retries in range(1, 7):
-            try:                
-                with self._lock:
+            try:
+                with self.__lock:
                     conn = socket.socket()
                     conn.connect((self._host, self._port))
                     conn.send(str(len(bstr)).encode() + b"#" + bstr)
@@ -65,9 +64,18 @@ class _Overlay:
         return None
 
     def _send2bin(self, msg):
-        self._send_raw_text(inpstr = json.dumps(msg))
+        self._send_raw_text(json.dumps(msg))
 
-    def send_message(self, msgid, text, color, x, y, ttl=4, size="normal"):                               
+    def send_message(
+        self,
+        msgid: str,
+        text: str,
+        color: str,
+        x: int,
+        y: int,
+        ttl: int = 4,
+        size: str = "normal",
+    ):
         msg = {
             "text": text,
             "color": color,
@@ -77,10 +85,20 @@ class _Overlay:
             "size": size,
             "id": msgid,
         }
-        self._send2bin(msg = msg)
-            
+        self._send2bin(msg)
 
-    def send_shape(self, shapeid, shape, color, fill, x, y, w, h, ttl):           
+    def send_shape(
+        self,
+        shapeid: str,
+        shape: str,
+        color: str,
+        fill: str,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        ttl: int,
+    ):
         msg = {
             "shape": shape,
             "color": color,
@@ -92,35 +110,70 @@ class _Overlay:
             "ttl": ttl,
             "id": shapeid,
         }
-        self._send2bin(msg = msg)
-          
+        self._send2bin(msg)
+
+
 class Overlay:
+    __caller_path: str = None
+    __token: str = None
+    __overlay: _OverlayImpl = None
+
     def __init__(self) -> None:
-        self._token = secrets.token_hex(4)
-        self._overlay = _Overlay()
-    
+        self.__token = secrets.token_hex(4)
+        self.__overlay = _OverlayImpl()
+        callFrames = inspect.getouterframes(inspect.currentframe())
+        __caller_path = callFrames[1].filename
+        logger.debug('\tOverlay() is created from: "%s"\n', __caller_path)
+
     def send_raw(self, msg):
         if "msgid" in msg:
-            msg["msgid"] = self._token + str(msg["msgid"])
+            msg["msgid"] = self.__token + str(msg["msgid"])
         if "shapeid" in msg:
-            msg["shapeid"] = self._token + str(msg["shapeid"])
+            msg["shapeid"] = self.__token + str(msg["shapeid"])
         if "id" in msg:
-            msg["id"] = self._token + msg["id"]
-        return self._overlay._send2bin(msg)
-           
-    def send_message(self, msgid, text, color, x, y, ttl=4, size="normal"):
-        return self._overlay.send_message(self._token + msgid, text, color, x, y, ttl=ttl, size=size)
+            msg["id"] = self.__token + msg["id"]
+        return self.__overlay._send2bin(msg)
 
-    def send_shape(self, shapeid, shape, color, fill, x, y, w, h, ttl):
-        return self._overlay.send_shape(self._token + shapeid, shape, color, fill, x, y, w, h, ttl)
+    def send_message(
+        self,
+        msgid: str,
+        text: str,
+        color: str,
+        x: int,
+        y: int,
+        ttl: int = 4,
+        size="normal",
+    ):
+        return self.__overlay.send_message(
+            self.__token + msgid, text, color, x, y, ttl=ttl, size=size
+        )
 
-    def connect(self):
+    def send_shape(
+        self,
+        shapeid: str,
+        shape: str,
+        color: str,
+        fill: str,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        ttl: int,
+    ):
+        return self.__overlay.send_shape(
+            self.__token + shapeid, shape, color, fill, x, y, w, h, ttl
+        )
+
+    def connect(self) -> bool:
         return True
 
+
 logger.debug("edmcoverlay2: instantiating overlay class")
-_the_overlay = _Overlay()
+__the_overlay = _OverlayImpl()
+
 
 def RequestBinaryToStop():
-    _the_overlay._stop()
+    __the_overlay._stop()
+
 
 logger.debug("edmcoverlay2: overlay class instantiated")
