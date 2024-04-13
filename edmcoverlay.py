@@ -131,7 +131,7 @@ class Overlay:
         self.__overlay = _OverlayImpl()
         callFrames = inspect.getouterframes(inspect.currentframe())
         __caller_path = callFrames[1].filename
-        logger.debug('\tOverlay() is created from: "%s"\n', __caller_path)
+        logger.info('\tOverlay() is created from: "%s"\n', __caller_path)
 
     def send_raw(self, msg):
         if "msgid" in msg:

@@ -1,5 +1,7 @@
 """Totally definitely EDMCOverlay."""
 
+import os
+import sys
 import time
 import tkinter as tk
 from pathlib import Path
@@ -11,14 +13,10 @@ import plug
 from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
-import os
-import sys
-
-
-from _logger import logger
 import edmcoverlay
+from _logger import logger
 
-#sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+_CaptionText: str = "EDMCOverlay for Linux"
 
 logger.debug("Loading plugin...")
 
@@ -42,7 +40,7 @@ def __find_overlay_binary() -> Path:
 
     for p in possible_paths:
         if p.exists():
-            logger.info("Found overlay binary at \"%s\".", p)
+            logger.info('Found overlay binary at "%s".', p)
             return p
 
     raise RuntimeError("Unable to find overlay's binary.")
@@ -83,7 +81,7 @@ def __stop_overlay():
 def plugin_start3(plugin_dir):
     logger.info("Python code starts.")
     __start_overlay()
-    return "EDMCOverlay for Linux"
+    return _CaptionText
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
@@ -117,7 +115,7 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     f0 = nb.Frame(frame)
     HyperlinkLabel(
         f0,
-        text="edmcoverlay for linux",
+        text=_CaptionText,
         url="https://github.com/alexzk1/edmcoverlay2",
         background=nb.Label().cget("background"),
         underline=True,
