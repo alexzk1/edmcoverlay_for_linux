@@ -1,6 +1,5 @@
 """Totally definitely EDMCOverlay."""
 
-import logging
 import time
 import tkinter as tk
 from pathlib import Path
@@ -9,18 +8,18 @@ from tkinter import ttk
 
 import myNotebook as nb
 import plug
-from config import appname, config
+from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
 import os
 import sys
 
 
+from _logger import logger
 import edmcoverlay
 
-plugin_name = Path(__file__).parent.name
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-logger = logging.getLogger(f"{appname}.{plugin_name}")
+#sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+
 logger.debug("Loading plugin...")
 
 
