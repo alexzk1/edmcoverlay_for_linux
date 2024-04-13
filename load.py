@@ -12,92 +12,104 @@ import plug
 from config import appname, config
 from ttkHyperlinkLabel import HyperlinkLabel
 
-plugin_name = Path(__file__).parent.name
-logger = logging.getLogger(f"{appname}.{plugin_name}")
-
-
-logger.debug("edmcoverlay2: loading plugin, importing lib")
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+
 import edmcoverlay
 
-overlay_process: Popen = None
-xpos_var: tk.IntVar
-ypos_var: tk.IntVar
-width_var: tk.IntVar
-height_var: tk.IntVar
+plugin_name = Path(__file__).parent.name
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+logger = logging.getLogger(f"{appname}.{plugin_name}")
+logger.debug("Loading plugin...")
 
 
-def find_overlay_binary() -> Path:
+__overlay_process: Popen = None
+__xpos_var: tk.IntVar
+__ypos_var: tk.IntVar
+__width_var: tk.IntVar
+__height_var: tk.IntVar
+
+
+def __find_overlay_binary() -> Path:
     our_directory = Path(__file__).resolve().parent
-    overlay_binary = our_directory / "overlay"
-    if not overlay_binary.exists():
-        plug.show_error("edmcoverlay2 unable to find overlay binary")
-        raise RuntimeError("edmcoverlay2 unable to find overlay binary")
-    return overlay_binary
+
+    possible_paths = [
+        our_directory / "cpp" / "build" / "edmc_linux_overlay",
+        our_directory / "cpp" / "edmc_linux_overlay",
+        our_directory / "edmc_linux_overlay",
+        our_directory / "overlay",
+    ]
+
+    for p in possible_paths:
+        if p.exists():
+            logger.info("Found overlay binary at \"%s\".", p)
+            return p
+
+    raise RuntimeError("Unable to find overlay's binary.")
 
 
-def start_overlay():
-    global overlay_process
-    if not overlay_process:
-        logger.info("edmcoverlay2: starting overlay")
+def __start_overlay():
+    global __overlay_process
+    if not __overlay_process:
+        logger.info("Starting overlay")
         xpos = config.get_int("edmcoverlay2_xpos") or 0
         ypos = config.get_int("edmcoverlay2_ypos") or 0
         width = config.get_int("edmcoverlay2_width") or 1920
         height = config.get_int("edmcoverlay2_height") or 1080
-        overlay_process = Popen(
-            [find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)]
+        __overlay_process = Popen(
+            [__find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)]
         )
 
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
-        tmp.send_message("edmcintro", "EDMC Ready", "#00FFFF", 30, 165, ttl=6)
+        tmp.send_message(
+            "edmcintro", "EDMC Overlay for Linux is Ready", "yellow", 30, 165, ttl=10
+        )
     else:
-        logger.warning("edmcoverlay2: not starting overlay, already running")
+        logger.warning("Overlay is already running, skipping the start.")
 
 
-def stop_overlay():
-    global overlay_process
-    if overlay_process:
-        logger.info("edmcoverlay2: stopping overlay")
-        overlay_process.terminate()
-        overlay_process.communicate()
-        overlay_process = None
+def __stop_overlay():
+    global __overlay_process
+    if __overlay_process:
+        logger.info("Stopping overlay.")
+        __overlay_process.terminate()
+        __overlay_process.communicate()
+        __overlay_process = None
     else:
-        logger.warning("edmcoverlay2: not stopping overlay, not started")
+        logger.warning("Overlay was not started. Nothing to stop.")
 
 
 def plugin_start3(plugin_dir):
-    logger.info("edmcoverlay2: plugin start!")
-    start_overlay()
-    return "edmcoverlay2"
+    logger.info("Python code starts.")
+    __start_overlay()
+    return "EDMCOverlay for Linux"
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
-    global overlay_process
-    if entry["event"] in ["LoadGame", "StartUp"] and overlay_process is None:
+    global __overlay_process
+    if entry["event"] in ["LoadGame", "StartUp"] and __overlay_process is None:
         logger.info("edmcoverlay2: load event received, starting overlay")
-        start_overlay()
+        __start_overlay()
     elif entry["event"] in ["Shutdown", "ShutDown"]:
         logger.info("edmcoverlay2: shutdown event received, stopping overlay")
-        stop_overlay()
+        __stop_overlay()
 
 
 def plugin_stop():
-    global overlay_process
-    logger.info("edmcoverlay2: exiting plugin")
+    global __overlay_process
+    logger.info("Finishing Python's code.")
     edmcoverlay.RequestBinaryToStop()
-    stop_overlay()
+    __stop_overlay()
 
 
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
-    global xpos_var, ypos_var, width_var, height_var
-    xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
-    ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
-    width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
-    height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
+    global __xpos_var, __ypos_var, __width_var, __height_var
+    __xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
+    __ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
+    __width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
+    __height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
     frame = nb.Frame(parent)
     frame.columnconfigure(0, weight=1)
     PAD_X = 10
@@ -106,7 +118,7 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     f0 = nb.Frame(frame)
     HyperlinkLabel(
         f0,
-        text="edmcoverlay2",
+        text="edmcoverlay for linux",
         url="https://github.com/alexzk1/edmcoverlay2",
         background=nb.Label().cget("background"),
         underline=True,
@@ -127,25 +139,25 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     nb.Label(f1, text="X position").grid(
         row=1, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
     )
-    nb.Entry(f1, textvariable=xpos_var).grid(
+    nb.Entry(f1, textvariable=__xpos_var).grid(
         row=1, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
     )
     nb.Label(f1, text="Y position").grid(
         row=2, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
     )
-    nb.Entry(f1, textvariable=ypos_var).grid(
+    nb.Entry(f1, textvariable=__ypos_var).grid(
         row=2, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
     )
     nb.Label(f1, text="Width").grid(
         row=3, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
     )
-    nb.Entry(f1, textvariable=width_var).grid(
+    nb.Entry(f1, textvariable=__width_var).grid(
         row=3, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
     )
     nb.Label(f1, text="Height").grid(
         row=4, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
     )
-    nb.Entry(f1, textvariable=height_var).grid(
+    nb.Entry(f1, textvariable=__height_var).grid(
         row=4, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
     )
     f1.grid(sticky=tk.EW)
@@ -158,10 +170,10 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     nb.Label(f2, text="Manual overlay controls:").grid(
         row=0, column=0, padx=PAD_X, pady=PAD_Y
     )
-    nb.Button(f2, text="Start overlay", command=lambda: start_overlay()).grid(
+    nb.Button(f2, text="Start overlay", command=lambda: __start_overlay()).grid(
         row=0, column=1, padx=PAD_X, pady=PAD_Y
     )
-    nb.Button(f2, text="Stop overlay", command=lambda: stop_overlay()).grid(
+    nb.Button(f2, text="Stop overlay", command=lambda: __stop_overlay()).grid(
         row=0, column=2, padx=PAD_X, pady=PAD_Y
     )
     f2.grid(sticky=tk.EW)
@@ -170,10 +182,10 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
 
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
-    xpos = xpos_var.get()
-    ypos = ypos_var.get()
-    width = width_var.get()
-    height = height_var.get()
+    xpos = __xpos_var.get()
+    ypos = __ypos_var.get()
+    width = __width_var.get()
+    height = __height_var.get()
     change = False
     for name, val in [
         ("xpos", xpos),
@@ -194,7 +206,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
                 if val != old_val:
                     change = True
             config.set(f"edmcoverlay2_{name}", val)
-    if change and overlay_process is not None:
+    if change and __overlay_process is not None:
         logger.info("Settings changes detected, restarting overlay")
-        stop_overlay()
-        start_overlay()
+        __stop_overlay()
+        __start_overlay()

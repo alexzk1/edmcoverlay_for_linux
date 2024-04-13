@@ -12,3 +12,6 @@ CMakeFiles/
 Testing/
 cmake_install.cmake
 qtcsettings.cmake
+Build*/
+build*/
+

@@ -4,12 +4,16 @@
 
 ## Installation
 
-- Clone the repo into your EDMC plugins directory
-  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay2`
+- Clone the repo into your EDMC plugins' directory
+  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay2`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
   the `xorg-dev` package may be sufficient)
-- Run `cmake . & make`
+- Run script `create_binary.sh` it will handle all needed.
 - In the EDMC settings, configure the size and position of the overlay
+
+## Dependencies
+
+Full list of libraries used check into `cpp/CMakeLists.txt`. Those must be pre-installed in system before running compilation.
 
 ## Usage
 
@@ -21,15 +25,10 @@ TTF fonts are supported.
 
 Some features are not yet implemented, and there are likely to be bugs.
 
-## Contributing
-
-Everyone interacting with this project is expected to abide by the terms
-of the Contributor Covenant Code of Conduct. Violations should be
-reported to coc-enforcement-edmcoverlay2@sorrel.sh.
-
 ## Copyright
 
 Copyright © 2020 Ash Holland. Licensed under the GPL (version 3 only).
+
 Copyright © 2021-2024 Oleksiy Zakharov. Licensed under the GPL (version 3 only).
 
 edmcoverlay2 is heavily based on [X11 overlay][] by @ericek111 (GPLv3).
