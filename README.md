@@ -1,11 +1,11 @@
 # edmcoverlay2
 
-[EDMC Overlay][] for Linux.
+[EDMC Overlay for Linux][]
 
 ## Installation
 
 - Clone the repo into your EDMC plugins' directory
-  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay2`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
+  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay_for_linux`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
   the `xorg-dev` package may be sufficient)
 - Run script `create_binary.sh` it will handle all needed.
