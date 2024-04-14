@@ -293,7 +293,8 @@ public:
             static std::once_flag print_once;
             std::call_once(print_once, [&prev_loc]()
             {
-                std::cerr << "Warning! Requested UTF-8 calculations while current locale is not UTF-8: LC_ALL=" <<
+                std::cerr <<
+                          "Warning! Requested UTF-8 calculations in overlay while current locale is not UTF-8: LC_ALL=" <<
                           prev_loc << std::endl;
             });
             return strLen;
