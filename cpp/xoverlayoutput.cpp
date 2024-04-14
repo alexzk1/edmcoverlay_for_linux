@@ -16,6 +16,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <unordered_map>
+
 
 // Events for normal windows
 constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask |
@@ -60,18 +62,11 @@ public:
         single_gc = allocGlobGC();
 
         colors.reset(new MyXOverlayColorMap(g_display, g_screen, getAttributes()));
-
-        //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
-        //From the other side, existing plugins send fixed distance between strings.
-        //This one looks okish for Canon's
-        normalfont = allocFont(16);
-        largefont  = allocFont(22);
     }
 
     ~XPrivateAccess()
     {
-        normalfont.reset();
-        largefont.reset();
+        loadedFonts.clear();
         colors.reset();
         single_gc.reset();
         g_display.reset();
@@ -99,7 +94,31 @@ public:
         XFlush(g_display);
     }
 
+    const opaque_ptr<XftFont>& getFont(int size)
+    {
+        if (loadedFonts.find(size) == loadedFonts.end())
+        {
+            loadedFonts[size] = allocFont(size);
+        }
+        return loadedFonts.at(size);
+    }
+
+    const opaque_ptr<XftFont>& getFont(const std::string& sizeText)
+    {
+        //large = normal + kDeltaFontDifference
+        constexpr int kDeltaFontDifference = 4;
+        constexpr int kNormalFontSize      = 16;
+
+        //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
+        //From the other side, existing plugins send fixed distance between strings.
+        //This one looks okish for Canon's.
+
+        return sizeText == "large" ? getFont(kNormalFontSize + kDeltaFontDifference)
+               : getFont(kNormalFontSize);
+    }
 private:
+    std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
+
     opaque_ptr<_XGC> allocGlobGC() const
     {
         return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
@@ -141,14 +160,14 @@ private:
 
             if (font)
             {
-                std::cout << "edmcoverlay2: Allocated font: " << fontStr << std::endl;
+                std::cout << "Overlay allocated font: " << fontStr << std::endl;
                 break;
             }
         }
 
         if (!font)
         {
-            throw std::runtime_error("edmcoverlay2: Could not load any font.");
+            throw std::runtime_error("Overlay could not load any font.");
         }
 
         return font;
@@ -261,9 +280,6 @@ public:
     Window    g_win{0};
     opaque_ptr<_XGC> single_gc{nullptr};
 
-    opaque_ptr<XftFont> normalfont{nullptr};
-    opaque_ptr<XftFont> largefont{nullptr};
-
     void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
                         int aX, int aY,
                         const std::string& aString, bool aRectangle) const
@@ -339,7 +355,7 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    xserv->drawUtf8String(xserv->normalfont, color, 0, 0, version, true);
+    xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, true);
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
@@ -350,12 +366,12 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 
     if (drawitem.drawmode == draw_task::drawmode_t::text)
     {
-        const auto& font = (drawitem.text.size == "large") ? xserv->largefont : xserv->normalfont;
+        const auto& font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
+                           : xserv->getFont(drawitem.text.size);
         xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text, false);
     }
     else
     {
-        /* cout << "edmcoverlay2: drawing a shape" << endl; */
         XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
 
         const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2,
@@ -366,7 +382,6 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 
         if (!had_vec && drawitem.shape.shape == "rect")
         {
-            /* cout << "edmcoverlay2: specifically, a rect" << endl; */
             // TODO distinct fill/edge colour
             XDrawRectangle(g_display, g_win, gc, drawitem.x,
                            drawitem.y, drawitem.shape.w, drawitem.shape.h);

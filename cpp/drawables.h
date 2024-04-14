@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <optional>
 #include <map>
 
 #include "json.hpp"
@@ -61,6 +62,7 @@ namespace draw_task
             // text
             std::string text;
             std::string size;
+            std::optional<int> fontSize{std::nullopt};
         } text;
 
         struct drawshape_t
@@ -81,11 +83,12 @@ namespace draw_task
 
     using draw_items_t = std::map<std::string, drawitem_t>;
 
-    /* text message: id, text, color, x, y, ttl, size
+    /* text message: id, text, color, x, y, ttl, size, [font_size]
     * shape message: id, shape, color, fill, x, y, w, h, ttl
     * color: "red", "yellow", "green", "blue", "#rrggbb"
     * shape: "rect"
     * size: "normal", "large"
+    * fontSize: if given, overrides "size" field. This is TTF font's size.
     */
     inline draw_items_t parseJsonString(const std::string& src)
     {
@@ -99,8 +102,11 @@ namespace draw_task
             {"x", LHDR{drawitem.x = NINT;}},
             {"y", LHDR{drawitem.y = NINT;}},
             {"color", LHDR{drawitem.color = NSTR;}},
+
             {"text", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.text = NSTR;}},
             {"size", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.size = NSTR;}},
+            {"font_size", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.fontSize = NINT;}},
+
             {"shape", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.shape = NSTR;}},
             {"fill", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.fill = NSTR;}},
             {"w", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.w = NINT;}},
