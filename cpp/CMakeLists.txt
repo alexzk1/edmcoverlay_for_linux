@@ -12,9 +12,23 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+set(PROJECT_SOURCES
+    main.cpp
+    colors_mgr.h
+    drawables.h
+    layer_out.h
+    xoverlayoutput.cpp xoverlayoutput.h
+    json_message.cc json_message.hh
+    socket.cc socket.hh
 
-add_executable(${CMAKE_PROJECT_NAME} overlay.cpp json.hpp socket.cc socket.hh json_message.cc json_message.hh xoverlayoutput.cpp xoverlayoutput.h
-    opaque_ptr.h cm_ctors.h colors_mgr.h drawables.h layer_out.h runners.h)
+    #Common helpers
+    json.hpp
+    cm_ctors.h
+    opaque_ptr.h
+    runners.h
+)
+
+add_executable(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES})
 
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -march=native -Wall)
 
