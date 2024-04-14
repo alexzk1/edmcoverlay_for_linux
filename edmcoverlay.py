@@ -1,8 +1,7 @@
 from pathlib import Path
-from config import appname
 from functools import wraps
+from _logger import logger
 
-import logging
 import secrets
 import inspect
 import errno
@@ -13,12 +12,9 @@ import time
 import random
 
 
-
-plugin_name = Path(__file__).parent.name
-logger = logging.getLogger(f"{appname}.{plugin_name}")
-logger.debug("edmcoverlay2: lib loaded")
 def check_game_running():
     return True
+
 
 class _OverlayImpl:
     __instance = None
@@ -32,17 +28,18 @@ class _OverlayImpl:
             return cls.__instance
 
     def __init__(self, server: str = "127.0.0.1", port: int = 5010):
-        logger.info("edmcoverlay2: loaded python plugin.")
+        logger.info("Loading implementation details...")
         with self.__lock:
             if self.__initialised:
-                logger.debug("edmcoverlay2: skipping init")
+                logger.debug("Details were already loaded.")
                 return
-            logger.debug("edmcoverlay2: init")
+            logger.debug("Initializing implementation details.")
             self.__initialised = True
             self._host = server
             self._port = port
 
     def _stop(self):
+        logger.info("Sending self-stop/exit request to the binary.")
         self._send_raw_text("NEED_TO_STOP")
 
     def _send_raw_text(self, inpstr: str):
@@ -57,7 +54,9 @@ class _OverlayImpl:
                     break
             except socket.error as e:
                 if e.errno == errno.ECONNREFUSED:
-                    logger.warning("edmcoverlay2: conn refused times %i", retries)
+                    logger.warning(
+                        "Connection to binary server was refused %i time(s).", retries
+                    )
                     time.sleep(random.randint(200, 450) / 1000.0)
                 else:
                     raise
@@ -113,6 +112,15 @@ class _OverlayImpl:
         self._send2bin(msg)
 
 
+logger.debug("Instantiating class OverlayImpl ...")
+__the_overlay: _OverlayImpl = _OverlayImpl()
+logger.debug(" class OverlayImpl is instantiated.")
+
+
+def RequestBinaryToStop():
+    __the_overlay._stop()
+
+
 class Overlay:
     __caller_path: str = None
     __token: str = None
@@ -123,7 +131,7 @@ class Overlay:
         self.__overlay = _OverlayImpl()
         callFrames = inspect.getouterframes(inspect.currentframe())
         __caller_path = callFrames[1].filename
-        logger.debug('\tOverlay() is created from: "%s"\n', __caller_path)
+        logger.info('\tOverlay() is created from: "%s"\n', __caller_path)
 
     def send_raw(self, msg):
         if "msgid" in msg:
@@ -166,14 +174,3 @@ class Overlay:
 
     def connect(self) -> bool:
         return True
-
-
-logger.debug("edmcoverlay2: instantiating overlay class")
-__the_overlay = _OverlayImpl()
-
-
-def RequestBinaryToStop():
-    __the_overlay._stop()
-
-
-logger.debug("edmcoverlay2: overlay class instantiated")

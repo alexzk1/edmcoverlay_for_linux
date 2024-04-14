@@ -1,13 +1,23 @@
-# edmcoverlay2
+# EDMC Overlay for Linux
+ 
+This is port of the idea of [EDMC Overlay] to the Linux. 
 
-[EDMC Overlay][] for Linux.
+Only API is ported, everything else is made from scratch. This repo supports X11 only yet.
+
+## New Features
+* TTF fonts are supported.
+
+
+## Example Screenshot(s)
+
+![ttf_example](https://github.com/alexzk1/edmcoverlay2/assets/4589845/60120533-ee49-4b47-9804-4cd3075d2426)
 
 ## Installation
 
 - Clone the repo into your EDMC plugins' directory
-  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay2`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
+  - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay_for_linux`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
-  the `xorg-dev` package may be sufficient)
+  the `xorg-dev` package may be sufficient), `cmake`.
 - Run script `create_binary.sh` it will handle all needed.
 - In the EDMC settings, configure the size and position of the overlay
 
@@ -17,19 +27,19 @@ Full list of libraries used check into `cpp/CMakeLists.txt`. Those must be pre-i
 
 ## Usage
 
-edmcoverlay2 aims to be 100% compatible with EDMC Overlay. Python library is a wrapper to pass json to the compiled binary.
+EDMCOverlay for Linux aims to be 100% compatible with EDMC Overlay. 
+
+Python library is a wrapper to pass json to the compiled binary.
 Compiled binary can be used stand-alone for any other purposes as overlay. Binary listens on port 5010.
-TTF fonts are supported.
 
-![ttf_example](https://github.com/alexzk1/edmcoverlay2/assets/4589845/60120533-ee49-4b47-9804-4cd3075d2426)
-
-Some features are not yet implemented, and there are likely to be bugs.
 
 ## Copyright
 
 Copyright © 2020 Ash Holland. Licensed under the GPL (version 3 only).
 
 Copyright © 2021-2024 Oleksiy Zakharov. Licensed under the GPL (version 3 only).
+
+### Original references by Ash Holland
 
 edmcoverlay2 is heavily based on [X11 overlay][] by @ericek111 (GPLv3).
 

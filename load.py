@@ -1,6 +1,5 @@
 """Totally definitely EDMCOverlay."""
 
-import logging
 import time
 import tkinter as tk
 from pathlib import Path
@@ -8,22 +7,15 @@ from subprocess import Popen
 from tkinter import ttk
 
 import myNotebook as nb
-import plug
-from config import appname, config
+from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
-import os
-import sys
-
-
 import edmcoverlay
+from _logger import logger
 
-plugin_name = Path(__file__).parent.name
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-logger = logging.getLogger(f"{appname}.{plugin_name}")
 logger.debug("Loading plugin...")
 
-
+__CaptionText: str = "EDMCOverlay for Linux"
 __overlay_process: Popen = None
 __xpos_var: tk.IntVar
 __ypos_var: tk.IntVar
@@ -43,7 +35,7 @@ def __find_overlay_binary() -> Path:
 
     for p in possible_paths:
         if p.exists():
-            logger.info("Found overlay binary at \"%s\".", p)
+            logger.info('Found overlay binary at "%s".', p)
             return p
 
     raise RuntimeError("Unable to find overlay's binary.")
@@ -67,40 +59,45 @@ def __start_overlay():
             "edmcintro", "EDMC Overlay for Linux is Ready", "yellow", 30, 165, ttl=10
         )
     else:
-        logger.warning("Overlay is already running, skipping the start.")
+        logger.debug("Overlay is already running, skipping the start.")
 
 
 def __stop_overlay():
     global __overlay_process
     if __overlay_process:
         logger.info("Stopping overlay.")
-        __overlay_process.terminate()
-        __overlay_process.communicate()
+        edmcoverlay.RequestBinaryToStop()
+        time.sleep(1)
+        if __overlay_process.poll() is None:
+            __overlay_process.terminate()
+            __overlay_process.communicate()
         __overlay_process = None
     else:
-        logger.warning("Overlay was not started. Nothing to stop.")
+        logger.debug("Overlay was not started. Nothing to stop.")
 
 
-def plugin_start3(plugin_dir):
-    logger.info("Python code starts.")
-    __start_overlay()
-    return "EDMCOverlay for Linux"
-
-
+# Reaction to the game start/stop.
 def journal_entry(cmdr, is_beta, system, station, entry, state):
     global __overlay_process
     if entry["event"] in ["LoadGame", "StartUp"] and __overlay_process is None:
-        logger.info("edmcoverlay2: load event received, starting overlay")
+        logger.info("Load event received, ensuring binary overlay is started.")
         __start_overlay()
     elif entry["event"] in ["Shutdown", "ShutDown"]:
-        logger.info("edmcoverlay2: shutdown event received, stopping overlay")
+        logger.info("Shutdown event received, stopping binary overlay.")
         __stop_overlay()
 
 
+# Reaction to EDMC start.
+def plugin_start3(plugin_dir):
+    logger.info("Python code starts.")
+    __start_overlay()
+    return __CaptionText
+
+
+# Reaction to EDMC stop.
 def plugin_stop():
     global __overlay_process
     logger.info("Finishing Python's code.")
-    edmcoverlay.RequestBinaryToStop()
     __stop_overlay()
 
 
@@ -118,7 +115,7 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     f0 = nb.Frame(frame)
     HyperlinkLabel(
         f0,
-        text="edmcoverlay for linux",
+        text=__CaptionText,
         url="https://github.com/alexzk1/edmcoverlay2",
         background=nb.Label().cget("background"),
         underline=True,
