@@ -36,6 +36,9 @@ static void sighandler(int signum)
 111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
 110#{"id": "test1", "text": "You are low on fuel!", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
 128#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "font_size": 70, "color": "red", "x": 200, "y": 100, "ttl": 8}
+
+This contains UTF-8 chars and will fail with json parser on non-utf locale too:
+118#{"id": "test1", "text": "You are low on 水 fuel 水 !", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
 */
 
 int main(int argc, char* argv[])
