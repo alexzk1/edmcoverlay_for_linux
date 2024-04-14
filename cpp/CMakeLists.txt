@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 
 project(edmc_linux_overlay LANGUAGES CXX)
 
-#Required packages, please install it using package manager, on Ubuntu it may have prefix "lib" or suffix "-dev" or both.
+#Required packages, please install it using package manager, on Ubuntu it may have prefix "lib"
+#or suffix "-dev" or both.
+
 find_package(Freetype REQUIRED)
 find_package(Fontconfig REQUIRED)
 find_package(X11 COMPONENTS Xft Xfixes Xext REQUIRED)
