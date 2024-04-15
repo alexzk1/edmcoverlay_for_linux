@@ -10,10 +10,11 @@ import socket
 import threading
 import time
 import random
+from monitor import monitor
 
 
 def check_game_running():
-    return True
+    return monitor.game_running()
 
 
 class _OverlayImpl:

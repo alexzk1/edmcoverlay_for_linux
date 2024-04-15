@@ -19,9 +19,10 @@ __CaptionText: str = "EDMCOverlay for Linux"
 __overlay_process: Popen = None
 __configVars: cfv.ConfigVars = cfv.ConfigVars()
 
+__configVars.raiseIfWrongNamed()
 
 def __find_overlay_binary() -> Path:
-    our_directory = Path(__file__).resolve().parent
+    our_directory = __configVars.getOurDir()
 
     possible_paths = [
         our_directory / "cpp" / "build" / "edmc_linux_overlay",
