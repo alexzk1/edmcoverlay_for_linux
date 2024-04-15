@@ -4,12 +4,12 @@ import time
 import tkinter as tk
 from pathlib import Path
 from subprocess import Popen
-from tkinter import ttk
 
 import myNotebook as nb
-from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
+import _config_vars as cfv
+import _gui_builder as gb
 import edmcoverlay
 from _logger import logger
 
@@ -17,14 +17,19 @@ logger.debug("Loading plugin...")
 
 __CaptionText: str = "EDMCOverlay for Linux"
 __overlay_process: Popen = None
-__xpos_var: tk.IntVar
-__ypos_var: tk.IntVar
-__width_var: tk.IntVar
-__height_var: tk.IntVar
+__configVars: cfv.ConfigVars = cfv.ConfigVars()
+
+__configVars.raiseIfWrongNamed()
+
+
+logger.debug("Instantiating class OverlayImpl ...")
+__the_overlay = edmcoverlay.OverlayImpl()
+__the_overlay.setConfig(__configVars)
+logger.debug(" class OverlayImpl is instantiated.")
 
 
 def __find_overlay_binary() -> Path:
-    our_directory = Path(__file__).resolve().parent
+    our_directory = __configVars.getOurDir()
 
     possible_paths = [
         our_directory / "cpp" / "build" / "edmc_linux_overlay",
@@ -44,15 +49,16 @@ def __find_overlay_binary() -> Path:
 def __start_overlay():
     global __overlay_process
     if not __overlay_process:
-        logger.info("Starting overlay")
-        xpos = config.get_int("edmcoverlay2_xpos") or 0
-        ypos = config.get_int("edmcoverlay2_ypos") or 0
-        width = config.get_int("edmcoverlay2_width") or 1920
-        height = config.get_int("edmcoverlay2_height") or 1080
+        logger.info("Starting overlay.")
         __overlay_process = Popen(
-            [__find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)]
+            [
+                __find_overlay_binary(),
+                str(__configVars.iXPos.get()),
+                str(__configVars.iYPos.get()),
+                str(__configVars.iWidth.get()),
+                str(__configVars.iHeight.get()),
+            ]
         )
-
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
         tmp.send_message(
@@ -66,7 +72,7 @@ def __stop_overlay():
     global __overlay_process
     if __overlay_process:
         logger.info("Stopping overlay.")
-        edmcoverlay.RequestBinaryToStop()
+        __the_overlay._stop()
         time.sleep(1)
         if __overlay_process.poll() is None:
             __overlay_process.terminate()
@@ -90,7 +96,11 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 # Reaction to EDMC start.
 def plugin_start3(plugin_dir):
     logger.info("Python code starts.")
-    __start_overlay()
+    __configVars.loadFromSettings()
+
+    if __configVars.iDebug.get():
+        __start_overlay()
+
     return __CaptionText
 
 
@@ -102,108 +112,63 @@ def plugin_stop():
 
 
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
-    global __xpos_var, __ypos_var, __width_var, __height_var
-    __xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
-    __ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
-    __width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
-    __height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
-    frame = nb.Frame(parent)
-    frame.columnconfigure(0, weight=1)
-    PAD_X = 10
-    PAD_Y = 2
+    global __configVars
 
-    f0 = nb.Frame(frame)
-    HyperlinkLabel(
-        f0,
-        text=__CaptionText,
-        url="https://github.com/alexzk1/edmcoverlay2",
-        background=nb.Label().cget("background"),
-        underline=True,
-    ).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
-    nb.Label(f0, text="by Ash Holland, Oleksiy Zakharov").grid(
-        row=0, column=1, sticky=tk.W, padx=(0, PAD_X)
-    )
-    f0.grid(sticky=tk.EW)
+    mainFrame = nb.Frame(parent)
+    mainFrame.columnconfigure(0, weight=1)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
-        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
-    )
+    linkFrame = nb.Frame(mainFrame)
+    declareLink = [
+        gb.TTextAndInputRow(
+            HyperlinkLabel(
+                linkFrame,
+                text=__CaptionText,
+                url="https://github.com/alexzk1/edmcoverlay2",
+                background=nb.Label().cget("background"),
+                underline=True,
+            ),
+            None,
+        ),
+        gb.TTextAndInputRow("by Ash Holland, Oleksiy Zakharov", None),
+    ]
+    gb.MakeGuiTable(parent=linkFrame, defines=declareLink, initialRaw=0)
+    linkFrame.grid(sticky=tk.EW)
 
-    f1 = nb.Frame(frame)
-    nb.Label(f1, text="Overlay configuration:").grid(
-        row=0, column=0, columnspan=3, padx=PAD_X, pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="X position").grid(
-        row=1, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__xpos_var).grid(
-        row=1, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Y position").grid(
-        row=2, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__ypos_var).grid(
-        row=2, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Width").grid(
-        row=3, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__width_var).grid(
-        row=3, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Height").grid(
-        row=4, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__height_var).grid(
-        row=4, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    f1.grid(sticky=tk.EW)
+    gb.AddMainSeparator(mainFrame)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
-        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
+    inputsFrame = nb.Frame(mainFrame)
+    gb.MakeGuiTable(
+        parent=inputsFrame, defines=__configVars.getVisualInputs(), initialRaw=0
     )
+    inputsFrame.grid(sticky=tk.EW)
 
-    f2 = nb.Frame(frame)
-    nb.Label(f2, text="Manual overlay controls:").grid(
-        row=0, column=0, padx=PAD_X, pady=PAD_Y
-    )
-    nb.Button(f2, text="Start overlay", command=lambda: __start_overlay()).grid(
-        row=0, column=1, padx=PAD_X, pady=PAD_Y
-    )
-    nb.Button(f2, text="Stop overlay", command=lambda: __stop_overlay()).grid(
-        row=0, column=2, padx=PAD_X, pady=PAD_Y
-    )
-    f2.grid(sticky=tk.EW)
+    gb.AddMainSeparator(mainFrame)
 
-    return frame
+    startStopFrame = nb.Frame(mainFrame)
+    declareButtons = [
+        gb.TTextAndInputRow("Manual overlay controls:", None),
+        gb.TTextAndInputRow(
+            nb.Button(
+                startStopFrame,
+                text="Start overlay",
+                command=lambda: __start_overlay(),
+            ),
+            nb.Button(
+                startStopFrame,
+                text="Stop  overlay",
+                command=lambda: __stop_overlay(),
+            ),
+        ),
+    ]
+    gb.MakeGuiTable(parent=startStopFrame, defines=declareButtons, initialRaw=0)
+    startStopFrame.grid(sticky=tk.EW)
+
+    gb.AddMainSeparator(mainFrame)
+
+    return mainFrame
 
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
-    xpos = __xpos_var.get()
-    ypos = __ypos_var.get()
-    width = __width_var.get()
-    height = __height_var.get()
-    change = False
-    for name, val in [
-        ("xpos", xpos),
-        ("ypos", ypos),
-        ("width", width),
-        ("height", height),
-    ]:
-        try:
-            assert int(val) >= 0
-        except (ValueError, AssertionError):
-            logger.warning("Bad config value for %s: %r", name, val)
-        else:
-            try:
-                old_val = config.get_int(f"edmcoverlay2_{name}")
-            except (TypeError, ValueError):
-                pass
-            else:
-                if val != old_val:
-                    change = True
-            config.set(f"edmcoverlay2_{name}", val)
-    if change and __overlay_process is not None:
-        logger.info("Settings changes detected, restarting overlay")
+    if __configVars.saveToSettings() and __overlay_process is not None:
         __stop_overlay()
         __start_overlay()

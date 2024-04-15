@@ -15,7 +15,10 @@
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <mutex>
 #include <vector>
+#include <unordered_map>
+#include <cwchar>
 
 // Events for normal windows
 constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask |
@@ -60,18 +63,11 @@ public:
         single_gc = allocGlobGC();
 
         colors.reset(new MyXOverlayColorMap(g_display, g_screen, getAttributes()));
-
-        //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
-        //From the other side, existing plugins send fixed distance between strings.
-        //This one looks okish for Canon's
-        normalfont = allocFont(16);
-        largefont  = allocFont(22);
     }
 
     ~XPrivateAccess()
     {
-        normalfont.reset();
-        largefont.reset();
+        loadedFonts.clear();
         colors.reset();
         single_gc.reset();
         g_display.reset();
@@ -99,7 +95,31 @@ public:
         XFlush(g_display);
     }
 
+    const opaque_ptr<XftFont>& getFont(int size)
+    {
+        if (loadedFonts.find(size) == loadedFonts.end())
+        {
+            loadedFonts[size] = allocFont(size);
+        }
+        return loadedFonts.at(size);
+    }
+
+    const opaque_ptr<XftFont>& getFont(const std::string& sizeText)
+    {
+        //large = normal + kDeltaFontDifference
+        constexpr int kDeltaFontDifference = 4;
+        constexpr int kNormalFontSize      = 16;
+
+        //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
+        //From the other side, existing plugins send fixed distance between strings.
+        //This one looks okish for Canon's.
+
+        return sizeText == "large" ? getFont(kNormalFontSize + kDeltaFontDifference)
+               : getFont(kNormalFontSize);
+    }
 private:
+    std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
+
     opaque_ptr<_XGC> allocGlobGC() const
     {
         return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
@@ -141,14 +161,14 @@ private:
 
             if (font)
             {
-                std::cout << "edmcoverlay2: Allocated font: " << fontStr << std::endl;
+                std::cout << "Overlay allocated font: " << fontStr << std::endl;
                 break;
             }
         }
 
         if (!font)
         {
-            throw std::runtime_error("edmcoverlay2: Could not load any font.");
+            throw std::runtime_error("Overlay could not load any font.");
         }
 
         return font;
@@ -261,8 +281,37 @@ public:
     Window    g_win{0};
     opaque_ptr<_XGC> single_gc{nullptr};
 
-    opaque_ptr<XftFont> normalfont{nullptr};
-    opaque_ptr<XftFont> largefont{nullptr};
+    //FIXME: JSON parser does not accept incoming UTF-8 symbols too...
+    static std::size_t utf8CharLen(const std::string& str)
+    {
+        const auto strLen = str.length();
+        const std::string prev_loc = std::setlocale(LC_ALL, nullptr);
+        const bool need_change_locale = prev_loc.find(".UTF8") == std::string::npos;
+
+        if (need_change_locale)
+        {
+            static std::once_flag print_once;
+            std::call_once(print_once, [&prev_loc]()
+            {
+                std::cerr <<
+                          "Warning! Requested UTF-8 calculations in overlay while current locale is not UTF-8: LC_ALL=" <<
+                          prev_loc << std::endl;
+            });
+            return strLen;
+        }
+
+        unsigned int u = 0u;
+        const char *c_str = str.c_str();
+        std::size_t charCount = 0u;
+        while(u < strLen)
+        {
+            std::mbstate_t mb = std::mbstate_t();
+            u += std::mbrlen(&c_str[u], strLen - u, &mb);
+            charCount += 1;
+        }
+
+        return charCount;
+    }
 
     void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
                         int aX, int aY,
@@ -270,8 +319,7 @@ public:
     {
         //https://github.com/jsynacek/xft-example/blob/master/main.c
 
-        //fixme: most likelly it is wrong utf-8 length.
-        const int length = aString.length();
+        const int length = utf8CharLen(aString);
         const FcChar8* str = reinterpret_cast<const FcChar8*>(aString.c_str());
 
         if (!aFont)
@@ -339,7 +387,7 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    xserv->drawUtf8String(xserv->normalfont, color, 0, 0, version, true);
+    xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, true);
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
@@ -350,12 +398,12 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 
     if (drawitem.drawmode == draw_task::drawmode_t::text)
     {
-        const auto& font = (drawitem.text.size == "large") ? xserv->largefont : xserv->normalfont;
+        const auto& font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
+                           : xserv->getFont(drawitem.text.size);
         xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text, false);
     }
     else
     {
-        /* cout << "edmcoverlay2: drawing a shape" << endl; */
         XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
 
         const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2,
@@ -366,7 +414,6 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 
         if (!had_vec && drawitem.shape.shape == "rect")
         {
-            /* cout << "edmcoverlay2: specifically, a rect" << endl; */
             // TODO distinct fill/edge colour
             XDrawRectangle(g_display, g_win, gc, drawitem.x,
                            drawitem.y, drawitem.shape.w, drawitem.shape.h);
