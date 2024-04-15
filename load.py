@@ -10,6 +10,7 @@ import myNotebook as nb
 from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
+import _gui_builder as gb
 import edmcoverlay
 from _logger import logger
 
@@ -101,84 +102,7 @@ def plugin_stop():
     __stop_overlay()
 
 
-def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
-    global __xpos_var, __ypos_var, __width_var, __height_var
-    __xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
-    __ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
-    __width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
-    __height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
-    frame = nb.Frame(parent)
-    frame.columnconfigure(0, weight=1)
-    PAD_X = 10
-    PAD_Y = 2
-
-    f0 = nb.Frame(frame)
-    HyperlinkLabel(
-        f0,
-        text=__CaptionText,
-        url="https://github.com/alexzk1/edmcoverlay2",
-        background=nb.Label().cget("background"),
-        underline=True,
-    ).grid(row=0, column=0, sticky=tk.W, padx=(PAD_X, 0))
-    nb.Label(f0, text="by Ash Holland, Oleksiy Zakharov").grid(
-        row=0, column=1, sticky=tk.W, padx=(0, PAD_X)
-    )
-    f0.grid(sticky=tk.EW)
-
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
-        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
-    )
-
-    f1 = nb.Frame(frame)
-    nb.Label(f1, text="Overlay configuration:").grid(
-        row=0, column=0, columnspan=3, padx=PAD_X, pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="X position").grid(
-        row=1, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__xpos_var).grid(
-        row=1, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Y position").grid(
-        row=2, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__ypos_var).grid(
-        row=2, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Width").grid(
-        row=3, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__width_var).grid(
-        row=3, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    nb.Label(f1, text="Height").grid(
-        row=4, column=0, padx=PAD_X, pady=(PAD_Y, 0), sticky=tk.E
-    )
-    nb.Entry(f1, textvariable=__height_var).grid(
-        row=4, column=1, columnspan=3, padx=(0, PAD_X), pady=PAD_Y, sticky=tk.W
-    )
-    f1.grid(sticky=tk.EW)
-
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
-        padx=PAD_X, pady=2 * PAD_Y, sticky=tk.EW
-    )
-
-    f2 = nb.Frame(frame)
-    nb.Label(f2, text="Manual overlay controls:").grid(
-        row=0, column=0, padx=PAD_X, pady=PAD_Y
-    )
-    nb.Button(f2, text="Start overlay", command=lambda: __start_overlay()).grid(
-        row=0, column=1, padx=PAD_X, pady=PAD_Y
-    )
-    nb.Button(f2, text="Stop overlay", command=lambda: __stop_overlay()).grid(
-        row=0, column=2, padx=PAD_X, pady=PAD_Y
-    )
-    f2.grid(sticky=tk.EW)
-
-    return frame
-
-
-def prefs_changed(cmdr: str, is_beta: bool) -> None:
+def __update_config() -> bool:
     xpos = __xpos_var.get()
     ypos = __ypos_var.get()
     width = __width_var.get()
@@ -203,7 +127,87 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
                 if val != old_val:
                     change = True
             config.set(f"edmcoverlay2_{name}", val)
-    if change and __overlay_process is not None:
+    return change
+
+
+def __update_and_start():
+    __update_config()
+    __start_overlay()
+
+
+def __update_and_stop():
+    __update_config()
+    __stop_overlay()
+
+
+def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
+    global __xpos_var, __ypos_var, __width_var, __height_var
+    __xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
+    __ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
+    __width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
+    __height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
+
+    mainFrame = nb.Frame(parent)
+    mainFrame.columnconfigure(0, weight=1)
+
+    linkFrame = nb.Frame(mainFrame)
+    declareLink = [
+        gb.TTextAndInputRow(
+            HyperlinkLabel(
+                linkFrame,
+                text=__CaptionText,
+                url="https://github.com/alexzk1/edmcoverlay2",
+                background=nb.Label().cget("background"),
+                underline=True,
+            ),
+            None,
+        ),
+        gb.TTextAndInputRow("by Ash Holland, Oleksiy Zakharov", None),
+    ]
+    gb.MakeGuiTable(parent=linkFrame, defines=declareLink, initialRaw=0)
+    linkFrame.grid(sticky=tk.EW)
+
+    gb.AddMainSeparator(mainFrame)
+
+    inputsFrame = nb.Frame(mainFrame)
+    declareInputs = [
+        gb.TTextAndInputRow("Overlay configuration:", None),
+        gb.TTextAndInputRow("X position", __xpos_var),
+        gb.TTextAndInputRow("Y position", __ypos_var),
+        gb.TTextAndInputRow("Width", __width_var),
+        gb.TTextAndInputRow("Height", __height_var),
+    ]
+    gb.MakeGuiTable(parent=inputsFrame, defines=declareInputs, initialRaw=0)
+    inputsFrame.grid(sticky=tk.EW)
+
+    gb.AddMainSeparator(mainFrame)
+
+    startStopFrame = nb.Frame(mainFrame)
+    declareButtons = [
+        gb.TTextAndInputRow("Manual overlay controls:", None),
+        gb.TTextAndInputRow(
+            nb.Button(
+                startStopFrame,
+                text="Start overlay",
+                command=lambda: __update_and_start(),
+            ),
+            nb.Button(
+                startStopFrame,
+                text="Stop  overlay",
+                command=lambda: __update_and_stop(),
+            ),
+        ),
+    ]
+    gb.MakeGuiTable(parent=startStopFrame, defines=declareButtons, initialRaw=0)
+    startStopFrame.grid(sticky=tk.EW)
+
+    gb.AddMainSeparator(mainFrame)
+
+    return mainFrame
+
+
+def prefs_changed(cmdr: str, is_beta: bool) -> None:
+    if __update_config() and __overlay_process is not None:
         logger.info("Settings changes detected, restarting overlay")
         __stop_overlay()
         __start_overlay()
