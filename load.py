@@ -4,12 +4,11 @@ import time
 import tkinter as tk
 from pathlib import Path
 from subprocess import Popen
-from tkinter import ttk
 
 import myNotebook as nb
-from config import config
 from ttkHyperlinkLabel import HyperlinkLabel
 
+import _config_vars as cfv
 import _gui_builder as gb
 import edmcoverlay
 from _logger import logger
@@ -18,10 +17,7 @@ logger.debug("Loading plugin...")
 
 __CaptionText: str = "EDMCOverlay for Linux"
 __overlay_process: Popen = None
-__xpos_var: tk.IntVar
-__ypos_var: tk.IntVar
-__width_var: tk.IntVar
-__height_var: tk.IntVar
+__configVars: cfv.ConfigVars = cfv.ConfigVars()
 
 
 def __find_overlay_binary() -> Path:
@@ -45,15 +41,16 @@ def __find_overlay_binary() -> Path:
 def __start_overlay():
     global __overlay_process
     if not __overlay_process:
-        logger.info("Starting overlay")
-        xpos = config.get_int("edmcoverlay2_xpos") or 0
-        ypos = config.get_int("edmcoverlay2_ypos") or 0
-        width = config.get_int("edmcoverlay2_width") or 1920
-        height = config.get_int("edmcoverlay2_height") or 1080
+        logger.info("Starting overlay.")
         __overlay_process = Popen(
-            [__find_overlay_binary(), str(xpos), str(ypos), str(width), str(height)]
+            [
+                __find_overlay_binary(),
+                str(__configVars.iXPos.get()),
+                str(__configVars.iYPos.get()),
+                str(__configVars.iWidth.get()),
+                str(__configVars.iHeight.get()),
+            ]
         )
-
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
         tmp.send_message(
@@ -91,7 +88,11 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 # Reaction to EDMC start.
 def plugin_start3(plugin_dir):
     logger.info("Python code starts.")
-    __start_overlay()
+    __configVars.loadFromSettings()
+    
+    if __configVars.iDebug.get():
+        __start_overlay()
+        
     return __CaptionText
 
 
@@ -102,50 +103,8 @@ def plugin_stop():
     __stop_overlay()
 
 
-def __update_config() -> bool:
-    xpos = __xpos_var.get()
-    ypos = __ypos_var.get()
-    width = __width_var.get()
-    height = __height_var.get()
-    change = False
-    for name, val in [
-        ("xpos", xpos),
-        ("ypos", ypos),
-        ("width", width),
-        ("height", height),
-    ]:
-        try:
-            assert int(val) >= 0
-        except (ValueError, AssertionError):
-            logger.warning("Bad config value for %s: %r", name, val)
-        else:
-            try:
-                old_val = config.get_int(f"edmcoverlay2_{name}")
-            except (TypeError, ValueError):
-                pass
-            else:
-                if val != old_val:
-                    change = True
-            config.set(f"edmcoverlay2_{name}", val)
-    return change
-
-
-def __update_and_start():
-    __update_config()
-    __start_overlay()
-
-
-def __update_and_stop():
-    __update_config()
-    __stop_overlay()
-
-
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
-    global __xpos_var, __ypos_var, __width_var, __height_var
-    __xpos_var = tk.IntVar(value=config.get_int("edmcoverlay2_xpos") or 0)
-    __ypos_var = tk.IntVar(value=config.get_int("edmcoverlay2_ypos") or 0)
-    __width_var = tk.IntVar(value=config.get_int("edmcoverlay2_width") or 1920)
-    __height_var = tk.IntVar(value=config.get_int("edmcoverlay2_height") or 1080)
+    global __configVars
 
     mainFrame = nb.Frame(parent)
     mainFrame.columnconfigure(0, weight=1)
@@ -170,14 +129,9 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     gb.AddMainSeparator(mainFrame)
 
     inputsFrame = nb.Frame(mainFrame)
-    declareInputs = [
-        gb.TTextAndInputRow("Overlay configuration:", None),
-        gb.TTextAndInputRow("X position", __xpos_var),
-        gb.TTextAndInputRow("Y position", __ypos_var),
-        gb.TTextAndInputRow("Width", __width_var),
-        gb.TTextAndInputRow("Height", __height_var),
-    ]
-    gb.MakeGuiTable(parent=inputsFrame, defines=declareInputs, initialRaw=0)
+    gb.MakeGuiTable(
+        parent=inputsFrame, defines=__configVars.getVisualInputs(), initialRaw=0
+    )
     inputsFrame.grid(sticky=tk.EW)
 
     gb.AddMainSeparator(mainFrame)
@@ -189,12 +143,12 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
             nb.Button(
                 startStopFrame,
                 text="Start overlay",
-                command=lambda: __update_and_start(),
+                command=lambda: __start_overlay(),
             ),
             nb.Button(
                 startStopFrame,
                 text="Stop  overlay",
-                command=lambda: __update_and_stop(),
+                command=lambda: __stop_overlay(),
             ),
         ),
     ]
@@ -207,7 +161,7 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
 
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
-    if __update_config() and __overlay_process is not None:
-        logger.info("Settings changes detected, restarting overlay")
+    __configVars.saveToSettings()
+    if __overlay_process is not None:
         __stop_overlay()
         __start_overlay()

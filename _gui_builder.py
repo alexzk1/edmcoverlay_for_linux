@@ -64,9 +64,10 @@ def MakeGuiTable(parent, defines: list[TTextAndInputRow], initialRaw: int):
                 item.iColVariable,
                 (tk.DoubleVar, tk.IntVar, tk.StringVar, tk.BooleanVar, tk.Variable),
             )
-
+            tk.Entry
             if isSecondVar:
-                nb.Entry(parent, textvariable=item.iColVariable).grid(
+                if isinstance(item.iColVariable,(tk.BooleanVar)):
+                    nb.Checkbutton(parent, variable=item.iColVariable).grid(
                     row=initialRaw,
                     column=1,
                     columnspan=3,
@@ -74,6 +75,15 @@ def MakeGuiTable(parent, defines: list[TTextAndInputRow], initialRaw: int):
                     pady=__PAD_Y,
                     sticky=tk.W,
                 )
+                else:                
+                    nb.Entry(parent, textvariable=item.iColVariable).grid(
+                        row=initialRaw,
+                        column=1,
+                        columnspan=3,
+                        padx=(0, __PAD_X),
+                        pady=__PAD_Y,
+                        sticky=tk.W,
+                    )
             else:
                 item.iColVariable.grid(
                     row=initialRaw,
@@ -83,7 +93,7 @@ def MakeGuiTable(parent, defines: list[TTextAndInputRow], initialRaw: int):
                     pady=__PAD_Y,
                     sticky=tk.W,
                 )
-        initialRaw += 1
+        initialRaw += 1    
 
 
 def AddMainSeparator(frame):
