@@ -1,5 +1,3 @@
-from pathlib import Path
-from functools import wraps
 from _logger import logger
 
 import secrets
@@ -11,16 +9,18 @@ import threading
 import time
 import random
 from monitor import monitor
+import _config_vars
 
 
 def check_game_running():
     return monitor.game_running()
 
 
-class _OverlayImpl:
+class OverlayImpl:
     __instance = None
     __lock = threading.Lock()
     __initialised: bool = False
+    __config: _config_vars.ConfigVars = None
 
     def __new__(cls, *args, **kwargs):
         with cls.__lock:
@@ -28,7 +28,11 @@ class _OverlayImpl:
                 cls.__instance = object.__new__(cls, *args, **kwargs)
             return cls.__instance
 
-    def __init__(self, server: str = "127.0.0.1", port: int = 5010):
+    def __init__(
+        self,
+        server: str = "127.0.0.1",
+        port: int = 5010,
+    ):
         logger.info("Loading implementation details...")
         with self.__lock:
             if self.__initialised:
@@ -38,6 +42,9 @@ class _OverlayImpl:
             self.__initialised = True
             self._host = server
             self._port = port
+
+    def setConfig(self, config: _config_vars.ConfigVars):
+        self.__config = config
 
     def _stop(self):
         logger.info("Sending self-stop/exit request to the binary.")
@@ -63,11 +70,19 @@ class _OverlayImpl:
                     raise
         return None
 
-    def _send2bin(self, msg):
+    def _send2bin(self, owner: str, msg):
+        if "font_size" not in msg:
+            font = "normal"
+            if "size" in msg:
+                font = msg["size"]
+
+            msg["font_size"] = self.__config.getFontSize(owner, font)
+
         self._send_raw_text(json.dumps(msg))
 
     def send_message(
         self,
+        owner: str,
         msgid: str,
         text: str,
         color: str,
@@ -85,10 +100,11 @@ class _OverlayImpl:
             "size": size,
             "id": msgid,
         }
-        self._send2bin(msg)
+        self._send2bin(owner, msg)
 
     def send_shape(
         self,
+        owner: str,
         shapeid: str,
         shape: str,
         color: str,
@@ -110,26 +126,17 @@ class _OverlayImpl:
             "ttl": ttl,
             "id": shapeid,
         }
-        self._send2bin(msg)
-
-
-logger.debug("Instantiating class OverlayImpl ...")
-__the_overlay: _OverlayImpl = _OverlayImpl()
-logger.debug(" class OverlayImpl is instantiated.")
-
-
-def RequestBinaryToStop():
-    __the_overlay._stop()
+        self._send2bin(owner, msg)
 
 
 class Overlay:
-    __caller_path: str = None
-    __token: str = None
-    __overlay: _OverlayImpl = None
+    __caller_path: str = ""
+    __token: str = ""
+    __overlay: OverlayImpl = None
 
     def __init__(self) -> None:
         self.__token = secrets.token_hex(4)
-        self.__overlay = _OverlayImpl()
+        self.__overlay = OverlayImpl()
         callFrames = inspect.getouterframes(inspect.currentframe())
         __caller_path = callFrames[1].filename
         logger.info('\tOverlay() is created from: "%s"\n', __caller_path)
@@ -141,7 +148,7 @@ class Overlay:
             msg["shapeid"] = self.__token + str(msg["shapeid"])
         if "id" in msg:
             msg["id"] = self.__token + msg["id"]
-        return self.__overlay._send2bin(msg)
+        return self.__overlay._send2bin(self.__caller_path, msg)
 
     def send_message(
         self,
@@ -154,7 +161,14 @@ class Overlay:
         size="normal",
     ):
         return self.__overlay.send_message(
-            self.__token + msgid, text, color, x, y, ttl=ttl, size=size
+            self.__caller_path,
+            self.__token + msgid,
+            text,
+            color,
+            x,
+            y,
+            ttl=ttl,
+            size=size,
         )
 
     def send_shape(
@@ -170,7 +184,16 @@ class Overlay:
         ttl: int,
     ):
         return self.__overlay.send_shape(
-            self.__token + shapeid, shape, color, fill, x, y, w, h, ttl
+            self.__caller_path,
+            self.__token + shapeid,
+            shape,
+            color,
+            fill,
+            x,
+            y,
+            w,
+            h,
+            ttl,
         )
 
     def connect(self) -> bool:

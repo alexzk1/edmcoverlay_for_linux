@@ -21,6 +21,13 @@ __configVars: cfv.ConfigVars = cfv.ConfigVars()
 
 __configVars.raiseIfWrongNamed()
 
+
+logger.debug("Instantiating class OverlayImpl ...")
+__the_overlay = edmcoverlay.OverlayImpl()
+__the_overlay.setConfig(__configVars)
+logger.debug(" class OverlayImpl is instantiated.")
+
+
 def __find_overlay_binary() -> Path:
     our_directory = __configVars.getOurDir()
 
@@ -65,7 +72,7 @@ def __stop_overlay():
     global __overlay_process
     if __overlay_process:
         logger.info("Stopping overlay.")
-        edmcoverlay.RequestBinaryToStop()
+        __the_overlay._stop()
         time.sleep(1)
         if __overlay_process.poll() is None:
             __overlay_process.terminate()
@@ -90,10 +97,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 def plugin_start3(plugin_dir):
     logger.info("Python code starts.")
     __configVars.loadFromSettings()
-    
+
     if __configVars.iDebug.get():
         __start_overlay()
-        
+
     return __CaptionText
 
 
@@ -162,7 +169,6 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
 
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
-    __configVars.saveToSettings()
-    if __overlay_process is not None:
+    if __configVars.saveToSettings() and __overlay_process is not None:
         __stop_overlay()
         __start_overlay()

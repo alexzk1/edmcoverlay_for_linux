@@ -28,7 +28,13 @@ class ConfigVars:
     iYPos: tk.IntVar = tk.IntVar(value=0)
     iWidth: tk.IntVar = tk.IntVar(value=1920)
     iHeight: tk.IntVar = tk.IntVar(value=1080)
+
+    iFontNorm: tk.IntVar = tk.IntVar(value=16)
+    iFontLarge: tk.IntVar = tk.IntVar(value=20)
+
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
+
+    __settingsWereChanged: bool = False
 
     def __init__(self) -> None:
         self.__installedPlugins = self.listInstalledEDMCPlugins()
@@ -40,8 +46,13 @@ class ConfigVars:
             self.__TJsonFieldMapper("ypos", self.iYPos),
             self.__TJsonFieldMapper("width", self.iWidth),
             self.__TJsonFieldMapper("height", self.iHeight),
+            self.__TJsonFieldMapper("fontN", self.iFontNorm),
+            self.__TJsonFieldMapper("fontL", self.iFontLarge),
             self.__TJsonFieldMapper("debug", self.iDebug),
         ]
+
+    def __set_changed(self, a, b, c):
+        self.__settingsWereChanged = True
 
     def loadFromSettings(self):
         """Loads stored settings."""
@@ -50,10 +61,15 @@ class ConfigVars:
         if loaded_str is not None:
             obj = json.loads(loaded_str)
             for m in self.__getJson2FieldMapper():
+                m.field_ref.trace_add("write", self.__set_changed)
+                m.field_ref.trace_add("unset", self.__set_changed)
+
                 if m.json_name in obj:
                     m.field_ref.set(obj[m.json_name])
 
-    def saveToSettings(self):
+        self.__settingsWereChanged = False
+
+    def saveToSettings(self) -> bool:
         """Saves variables to settings."""
 
         output = {}
@@ -61,13 +77,21 @@ class ConfigVars:
             output[var.json_name] = var.field_ref.get()
         config.set(self.__json_config_name, json.dumps(output, separators=(",", ":")))
 
+        hadChanges = self.__settingsWereChanged
+        self.__settingsWereChanged = False
+        return hadChanges
+
     def getVisualInputs(self):
         return [
-            gb.TTextAndInputRow("Overlay configuration:", None),
-            gb.TTextAndInputRow("X position", self.iXPos),
-            gb.TTextAndInputRow("Y position", self.iYPos),
+            gb.TTextAndInputRow("Overlay Configuration:", None),
+            gb.TTextAndInputRow("X Position", self.iXPos),
+            gb.TTextAndInputRow("Y Position", self.iYPos),
             gb.TTextAndInputRow("Width", self.iWidth),
             gb.TTextAndInputRow("Height", self.iHeight),
+            gb.TTextAndInputRow("Default Fonts' Sizes:", None),
+            gb.TTextAndInputRow("Font Normal", self.iFontNorm),
+            gb.TTextAndInputRow("Font Large", self.iFontLarge),
+            gb.TTextAndInputRow("", None),
             gb.TTextAndInputRow("Debug", self.iDebug),
         ]
 
@@ -96,3 +120,11 @@ class ConfigVars:
             raise WrongFoldeNameException(
                 "Please rename overlay's folder to " + self.__required_plugin_dir
             )
+
+    def getFontSize(self, ownerPath: str, requested: str) -> int:
+        if requested == "large":
+            return self.iFontLarge.get()
+
+        # TODO: finish per-plugin fonts' config.
+
+        return self.iFontNorm.get()

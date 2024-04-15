@@ -6,7 +6,8 @@ Only API is ported, everything else is made from scratch. This repo supports X11
 
 ## New Features
 * TTF fonts are supported.
-
+* Now user can configure "normal"/"large" fonts' sizes from EDMC settings. Single config for all plugins for now.
+* Added check if this plugin's folder is properly named `edmcoverlay`. It will crash if not.
 
 ## Example Screenshot(s)
 
