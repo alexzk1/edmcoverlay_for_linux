@@ -23,9 +23,9 @@ class ConfigVars:
         "__TJsonFieldMapper", "json_name field_ref reload_needed"
     )
 
-    __required_plugin_dir = "edmcoverlay"
+    __required_plugin_dir: str = "edmcoverlay"
     __json_config_name: str = "edmc_linux_overlay_json"
-    __installedPlugins = []
+    __installedPlugins: list[str] = []
     __binaryReloadRequired: bool = False
 
     iXPos: tk.IntVar = tk.IntVar(value=0)
@@ -39,7 +39,7 @@ class ConfigVars:
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
 
     def __init__(self) -> None:
-        self.__installedPlugins = self.listInstalledEDMCPlugins()
+        self.__listInstalledEDMCPlugins()
 
         # Install callback once because trace_add does not remove existing callback(s().
         for m in self.__getJson2FieldMapper():
@@ -118,18 +118,16 @@ class ConfigVars:
     def getPluginsDir(self):
         return Path(__file__).parent.parent.resolve()
 
-    def listInstalledEDMCPlugins(self):
+    def __listInstalledEDMCPlugins(self):
         pluginsDir = self.getPluginsDir()
         ourDir = self.getOurDir()
 
         logger.debug('Plugins dir: "%s"', pluginsDir)
-        dirs = []
+
         for child in pluginsDir.iterdir():
             if isDirOrSymlinkToDir(child) and not ourDir.samefile(child):
                 logger.debug('Found EDMC plugin: "%s"', child.name)
-                dirs.append(str(child.name))
-
-        return dirs
+                self.__installedPlugins.append(str(child.name))
 
     def raiseIfWrongNamed(self):
         expectedName = self.getPluginsDir() / self.__required_plugin_dir
