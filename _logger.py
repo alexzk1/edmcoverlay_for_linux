@@ -6,7 +6,7 @@ import os
 
 from config import appname
 
-DEFAULT_LOG_LEVEL= logging.INFO
+DEFAULT_LOG_LEVEL = logging.INFO
 # This could also be returned from plugin_start3()
 __plugin_name = os.path.basename(os.path.dirname(__file__))
 
@@ -15,11 +15,11 @@ __plugin_name = os.path.basename(os.path.dirname(__file__))
 # NB: plugin_name here *must* be the plugin's folder name as per the preceding
 #     code, else the logger won't be properly set up.
 logger = logging.getLogger(f"{appname}.{__plugin_name}")
-logger.setLevel(DEFAULT_LOG_LEVEL)
 
 # If the Logger has handlers then it was already set up by the core code, else
 # it needs setting up here.
-if not logger.hasHandlers():    
+if not logger.hasHandlers():
+    logger.setLevel(DEFAULT_LOG_LEVEL)
     logger_channel = logging.StreamHandler()
     logger_formatter = logging.Formatter(
         f"%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d:%(funcName)s: %(message)s"
