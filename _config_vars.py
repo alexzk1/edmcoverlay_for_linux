@@ -19,12 +19,14 @@ def isDirOrSymlinkToDir(path: Path):
 
 
 class ConfigVars:
-    __required_plugin_dir = "edmcoverlay"
-    __installedPlugins = []
-    __json_config_name: str = "edmc_linux_overlay_json"
     __TJsonFieldMapper = collections.namedtuple(
-        "__TJsonFieldMapper", "json_name field_ref"
+        "__TJsonFieldMapper", "json_name field_ref reload_needed"
     )
+
+    __required_plugin_dir = "edmcoverlay"
+    __json_config_name: str = "edmc_linux_overlay_json"
+    __installedPlugins = []
+    __binaryReloadRequired: bool = False
 
     iXPos: tk.IntVar = tk.IntVar(value=0)
     iYPos: tk.IntVar = tk.IntVar(value=0)
@@ -36,37 +38,34 @@ class ConfigVars:
 
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
 
-    __settingsWereChanged: bool = False
-
     def __init__(self) -> None:
         self.__installedPlugins = self.listInstalledEDMCPlugins()
 
         # Install callback once because trace_add does not remove existing callback(s().
         for m in self.__getJson2FieldMapper():
-            #Debug switch does not trigge "settings changed".
-            if m.json_name != "debug":
+            if m.reload_needed:
                 m.field_ref.trace_add("write", self.__set_changed)
                 m.field_ref.trace_add("unset", self.__set_changed)
-        
+
         self.iDebug.trace_add("write", self.__debug_switched)
 
     # This must be in sync with declared fields.
     def __getJson2FieldMapper(self):
         return [
-            self.__TJsonFieldMapper("xpos", self.iXPos),
-            self.__TJsonFieldMapper("ypos", self.iYPos),
-            self.__TJsonFieldMapper("width", self.iWidth),
-            self.__TJsonFieldMapper("height", self.iHeight),
-            self.__TJsonFieldMapper("fontN", self.iFontNorm),
-            self.__TJsonFieldMapper("fontL", self.iFontLarge),
-            self.__TJsonFieldMapper("debug", self.iDebug),
+            self.__TJsonFieldMapper("xpos", self.iXPos, True),
+            self.__TJsonFieldMapper("ypos", self.iYPos, True),
+            self.__TJsonFieldMapper("width", self.iWidth, True),
+            self.__TJsonFieldMapper("height", self.iHeight, True),
+            self.__TJsonFieldMapper("fontN", self.iFontNorm, False),
+            self.__TJsonFieldMapper("fontL", self.iFontLarge, False),
+            self.__TJsonFieldMapper("debug", self.iDebug, False),
         ]
 
     def __set_changed(self, var, index, mode):
-        self.__settingsWereChanged = True
+        self.__binaryReloadRequired = True
 
     def __debug_switched(self, var, index, mode):
-         #Debug switch changes output in log.
+        # Debug switch changes output in log.
         if self.iDebug.get():
             logger.setLevel(logging.DEBUG)
         else:
@@ -85,19 +84,19 @@ class ConfigVars:
                     m.field_ref.set(obj[m.json_name])
 
         self.__debug_switched("", 0, "")
-        self.__settingsWereChanged = False
+        self.__binaryReloadRequired = False
 
     def saveToSettings(self) -> bool:
-        """Saves variables to settings."""
+        """Saves variables to settings. Returns True if binary must be reloaded."""
 
         output = {}
         for var in self.__getJson2FieldMapper():
             output[var.json_name] = var.field_ref.get()
         config.set(self.__json_config_name, json.dumps(output, separators=(",", ":")))
 
-        hadChanges = self.__settingsWereChanged
-        self.__settingsWereChanged = False
-        return hadChanges
+        requiredReload = self.__binaryReloadRequired
+        self.__binaryReloadRequired = False
+        return requiredReload
 
     def getVisualInputs(self):
         return [
