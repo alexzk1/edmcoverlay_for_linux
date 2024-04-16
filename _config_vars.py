@@ -39,7 +39,16 @@ class ConfigVars:
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
 
     def __init__(self) -> None:
-        self.__listInstalledEDMCPlugins()
+        # Find installed plugins. We will keep font per plugin.
+        pluginsDir = self.getPluginsDir()
+        ourDir = self.getOurDir()
+
+        logger.debug('Plugins dir: "%s"', pluginsDir)
+
+        for child in pluginsDir.iterdir():
+            if isDirOrSymlinkToDir(child) and not ourDir.samefile(child):
+                logger.debug('Found EDMC plugin: "%s"', child.name)
+                self.__installedPlugins.append(str(child.name))
 
         # Install callback once because trace_add does not remove existing callback(s().
         for m in self.__getJson2FieldMapper():
@@ -117,17 +126,6 @@ class ConfigVars:
 
     def getPluginsDir(self):
         return Path(__file__).parent.parent.resolve()
-
-    def __listInstalledEDMCPlugins(self):
-        pluginsDir = self.getPluginsDir()
-        ourDir = self.getOurDir()
-
-        logger.debug('Plugins dir: "%s"', pluginsDir)
-
-        for child in pluginsDir.iterdir():
-            if isDirOrSymlinkToDir(child) and not ourDir.samefile(child):
-                logger.debug('Found EDMC plugin: "%s"', child.name)
-                self.__installedPlugins.append(str(child.name))
 
     def raiseIfWrongNamed(self):
         expectedName = self.getPluginsDir() / self.__required_plugin_dir
