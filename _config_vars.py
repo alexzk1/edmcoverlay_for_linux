@@ -1,11 +1,13 @@
 import collections
 import json
+import logging
 import tkinter as tk
 from pathlib import Path
 
 from config import config
 
 import _gui_builder as gb
+import _logger as lgr
 from _logger import logger
 
 
@@ -39,7 +41,16 @@ class ConfigVars:
     def __init__(self) -> None:
         self.__installedPlugins = self.listInstalledEDMCPlugins()
 
-    # this must be in sync with declared fields
+        # Install callback once because trace_add does not remove existing callback(s().
+        for m in self.__getJson2FieldMapper():
+            #Debug switch does not trigge "settings changed".
+            if m.json_name != "debug":
+                m.field_ref.trace_add("write", self.__set_changed)
+                m.field_ref.trace_add("unset", self.__set_changed)
+        
+        self.iDebug.trace_add("write", self.__debug_switched)
+
+    # This must be in sync with declared fields.
     def __getJson2FieldMapper(self):
         return [
             self.__TJsonFieldMapper("xpos", self.iXPos),
@@ -51,8 +62,17 @@ class ConfigVars:
             self.__TJsonFieldMapper("debug", self.iDebug),
         ]
 
-    def __set_changed(self, a, b, c):
+    def __set_changed(self, var, index, mode):
         self.__settingsWereChanged = True
+
+    def __debug_switched(self, var, index, mode):
+         #Debug switch changes output in log.
+        if self.iDebug.get():
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(lgr.DEFAULT_LOG_LEVEL)
+
+        logger.info("Set debug mode to: %i", logger.level)
 
     def loadFromSettings(self):
         """Loads stored settings."""
@@ -61,12 +81,10 @@ class ConfigVars:
         if loaded_str is not None:
             obj = json.loads(loaded_str)
             for m in self.__getJson2FieldMapper():
-                m.field_ref.trace_add("write", self.__set_changed)
-                m.field_ref.trace_add("unset", self.__set_changed)
-
                 if m.json_name in obj:
                     m.field_ref.set(obj[m.json_name])
 
+        self.__debug_switched("", 0, "")
         self.__settingsWereChanged = False
 
     def saveToSettings(self) -> bool:
