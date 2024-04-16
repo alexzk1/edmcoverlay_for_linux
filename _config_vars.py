@@ -80,7 +80,7 @@ class ConfigVars:
         else:
             logger.setLevel(lgr.DEFAULT_LOG_LEVEL)
 
-        logger.info("Set debug mode to: %i", logger.level)
+        logger.info("Set loglevel to: %i", logger.level)
 
     def loadFromSettings(self):
         """Loads stored settings."""
