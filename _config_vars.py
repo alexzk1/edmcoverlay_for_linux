@@ -28,14 +28,13 @@ class ConfigVars:
     __installedPlugins: list[str] = []
     __binaryReloadRequired: bool = False
 
+    # Simple config fields
     iXPos: tk.IntVar = tk.IntVar(value=0)
     iYPos: tk.IntVar = tk.IntVar(value=0)
     iWidth: tk.IntVar = tk.IntVar(value=1920)
     iHeight: tk.IntVar = tk.IntVar(value=1080)
-
     iFontNorm: tk.IntVar = tk.IntVar(value=16)
     iFontLarge: tk.IntVar = tk.IntVar(value=20)
-
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
 
     def __init__(self) -> None:
@@ -79,7 +78,6 @@ class ConfigVars:
             logger.setLevel(logging.DEBUG)
         else:
             logger.setLevel(lgr.DEFAULT_LOG_LEVEL)
-
         logger.info("Set loglevel to: %i", logger.level)
 
     def loadFromSettings(self):
