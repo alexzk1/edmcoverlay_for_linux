@@ -70,7 +70,7 @@ class OverlayImpl:
                     raise
         return None
 
-    def _send2bin(self, owner: str, msg):
+    def _send2bin(self, owner: str, msg: dict):
         if "font_size" not in msg:
             font = "normal"
             if "size" in msg:
@@ -138,10 +138,10 @@ class Overlay:
         self.__token = secrets.token_hex(4)
         self.__overlay = OverlayImpl()
         callFrames = inspect.getouterframes(inspect.currentframe())
-        __caller_path = callFrames[1].filename
-        logger.info('\tOverlay() is created from: "%s"\n', __caller_path)
+        self.__caller_path = callFrames[1].filename
+        logger.debug('\tOverlay() is created for plugin: "%s"\n', self.__caller_path)
 
-    def send_raw(self, msg):
+    def send_raw(self, msg: dict):
         if "msgid" in msg:
             msg["msgid"] = self.__token + str(msg["msgid"])
         if "shapeid" in msg:
