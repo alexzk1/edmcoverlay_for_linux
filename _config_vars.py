@@ -6,6 +6,7 @@ from pathlib import Path
 
 from config import config
 
+import myNotebook as nb
 import _gui_builder as gb
 import _logger as lgr
 from _logger import logger
@@ -22,10 +23,12 @@ class ConfigVars:
     __TJsonFieldMapper = collections.namedtuple(
         "__TJsonFieldMapper", "json_name field_ref reload_needed"
     )
+    __defaultNormalFont: int = 16
+    __defaultLargeFont: int = 20
+    __fontSizeTooSmall = 4
 
     __required_plugin_dir: str = "edmcoverlay"
     __json_config_name: str = "edmc_linux_overlay_json"
-    __installedPlugins: list[str] = []
     __binaryReloadRequired: bool = False
 
     # Simple config fields
@@ -33,8 +36,10 @@ class ConfigVars:
     iYPos: tk.IntVar = tk.IntVar(value=0)
     iWidth: tk.IntVar = tk.IntVar(value=1920)
     iHeight: tk.IntVar = tk.IntVar(value=1080)
-    iFontNorm: tk.IntVar = tk.IntVar(value=16)
-    iFontLarge: tk.IntVar = tk.IntVar(value=20)
+    _iFontNorm: tk.IntVar = tk.IntVar(value=__defaultNormalFont)
+    _iFontLarge: tk.IntVar = tk.IntVar(value=__defaultLargeFont)
+    _iFontPerPlugin: dict = {}
+
     iDebug: tk.BooleanVar = tk.BooleanVar(value=False)
 
     def __init__(self) -> None:
@@ -47,7 +52,7 @@ class ConfigVars:
         for child in pluginsDir.iterdir():
             if isDirOrSymlinkToDir(child) and not ourDir.samefile(child):
                 logger.debug('Found EDMC plugin: "%s"', child.name)
-                self.__installedPlugins.append(str(child.name))
+                self._iFontPerPlugin[str(child.name)] = tk.IntVar(value=0)
 
         # Install callback once because trace_add does not remove existing callback(s().
         for m in self.__getJson2FieldMapper():
@@ -64,8 +69,9 @@ class ConfigVars:
             self.__TJsonFieldMapper("ypos", self.iYPos, True),
             self.__TJsonFieldMapper("width", self.iWidth, True),
             self.__TJsonFieldMapper("height", self.iHeight, True),
-            self.__TJsonFieldMapper("fontN", self.iFontNorm, False),
-            self.__TJsonFieldMapper("fontL", self.iFontLarge, False),
+            self.__TJsonFieldMapper("fontN", self._iFontNorm, False),
+            self.__TJsonFieldMapper("fontL", self._iFontLarge, False),
+            self.__TJsonFieldMapper("fontNPerPlagun", self._iFontPerPlugin, False),
             self.__TJsonFieldMapper("debug", self.iDebug, False),
         ]
 
@@ -88,7 +94,11 @@ class ConfigVars:
             obj = json.loads(loaded_str)
             for m in self.__getJson2FieldMapper():
                 if m.json_name in obj:
-                    m.field_ref.set(obj[m.json_name])
+                    if isinstance(obj[m.json_name], dict):
+                        for k in obj[m.json_name]:
+                            m.field_ref[k].set(obj[m.json_name][k])
+                    else:
+                        m.field_ref.set(obj[m.json_name])
 
         self.__debug_switched("", 0, "")
         self.__binaryReloadRequired = False
@@ -96,9 +106,17 @@ class ConfigVars:
     def saveToSettings(self) -> bool:
         """Saves variables to settings. Returns True if binary must be reloaded."""
 
+        # Building python's dictionary which will be dumped to the single json.
         output = {}
         for var in self.__getJson2FieldMapper():
-            output[var.json_name] = var.field_ref.get()
+            if isinstance(var.field_ref, dict):
+                d = {}
+                for k in var.field_ref:
+                    d[k] = var.field_ref[k].get()
+                output[var.json_name] = d
+            else:
+                output[var.json_name] = var.field_ref.get()
+
         config.set(self.__json_config_name, json.dumps(output, separators=(",", ":")))
 
         requiredReload = self.__binaryReloadRequired
@@ -106,20 +124,26 @@ class ConfigVars:
         return requiredReload
 
     def getVisualInputs(self):
-        return [
+        arr = [
             gb.TTextAndInputRow("Overlay Configuration:", None),
             gb.TTextAndInputRow("X Position", self.iXPos),
             gb.TTextAndInputRow("Y Position", self.iYPos),
             gb.TTextAndInputRow("Width", self.iWidth),
             gb.TTextAndInputRow("Height", self.iHeight),
             gb.TTextAndInputRow("Default Fonts' Sizes:", None),
-            gb.TTextAndInputRow("Font Normal", self.iFontNorm),
-            gb.TTextAndInputRow("Font Large", self.iFontLarge),
-            gb.TTextAndInputRow("", None),
-            gb.TTextAndInputRow("Debug", self.iDebug),
+            gb.TTextAndInputRow("Font Normal", self._iFontNorm),
+            gb.TTextAndInputRow("Font Large", self._iFontLarge),
+            gb.TTextAndInputRow("N. Font Per Plugin (L. = +4, default = 0):", None),
         ]
+        for key in self._iFontPerPlugin:
+            arr.append(gb.TTextAndInputRow(key, self._iFontPerPlugin[key]))
+
+        arr.append(gb.TTextAndInputRow("", None))
+        arr.append(gb.TTextAndInputRow("Debug", self.iDebug))
+        return arr
 
     def getOurDir(self):
+        tk.OptionMenu
         return Path(__file__).parent.resolve()
 
     def getPluginsDir(self):
@@ -132,10 +156,27 @@ class ConfigVars:
                 "Please rename overlay's folder to " + self.__required_plugin_dir
             )
 
+    def __isRequestedLarge(self, requested: str) -> bool:
+        return requested == "large"
+
+    def __minimalFont(self, font: int, default: int) -> int:
+        if font < self.__fontSizeTooSmall:
+            font = self._iFontNorm.get()
+        if font < self.__fontSizeTooSmall:
+            font = default
+        return font
+
     def getFontSize(self, ownerPath: str, requested: str) -> int:
-        if requested == "large":
-            return self.iFontLarge.get()
+        logger.debug('Requested font size for "%s"', ownerPath)
+        for key in self._iFontPerPlugin:
+            if key in ownerPath:
+                normal = self._iFontPerPlugin[key].get()
+                if normal < self.__fontSizeTooSmall:
+                    break
+                if self.__isRequestedLarge(requested):
+                    return self.__minimalFont(normal + 4, self.__defaultLargeFont)
+                return self.__minimalFont(normal, self.__defaultNormalFont)
 
-        # TODO: finish per-plugin fonts' config.
-
-        return self.iFontNorm.get()
+        if self.__isRequestedLarge(requested):
+            return self.__minimalFont(self._iFontLarge.get(), self.__defaultLargeFont)
+        return self.__minimalFont(self._iFontNorm.get(), self.__defaultNormalFont)
