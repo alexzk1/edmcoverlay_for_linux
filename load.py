@@ -29,6 +29,7 @@ logger.debug(" class OverlayImpl is instantiated.")
 
 
 def __find_overlay_binary() -> Path:
+    global __configVars
     our_directory = __configVars.getOurDir()
 
     possible_paths = [
@@ -48,6 +49,8 @@ def __find_overlay_binary() -> Path:
 
 def __start_overlay():
     global __overlay_process
+    global __configVars
+
     if not __overlay_process:
         logger.info("Starting overlay.")
         __overlay_process = Popen(
@@ -95,6 +98,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
 # Reaction to EDMC start.
 def plugin_start3(plugin_dir):
+    global __configVars
     logger.info("Python code starts.")
     __configVars.loadFromSettings()
 
@@ -169,6 +173,7 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
 
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
+    global __configVars
     if __configVars.saveToSettings() and __overlay_process is not None:
         __stop_overlay()
         __start_overlay()
