@@ -27,7 +27,9 @@ class ConfigVars:
     __defaultLargeFont: int = 20
     __fontSizeTooSmall = 4
 
-    __required_plugin_dir: str = "edmcoverlay"
+    # Possible spellings. Some plugins may try to use Windows' file name.
+    # So we can name this plugin as 1 of those, however either way will break other half of users.
+    __required_plugin_dir: list[str] = ["edmcoverlay", "EDMCOverlay"]
     __json_config_name: str = "edmc_linux_overlay_json"
     __binaryReloadRequired: bool = False
 
@@ -150,10 +152,16 @@ class ConfigVars:
         return Path(__file__).parent.parent.resolve()
 
     def raiseIfWrongNamed(self):
-        expectedName = self.getPluginsDir() / self.__required_plugin_dir
-        if not (expectedName.exists() and self.getOurDir().samefile(expectedName)):
+        found = False
+        pluginsDir = self.getPluginsDir()
+        ourDir = self.getOurDir()
+        for possibleName in self.__required_plugin_dir:
+            expectedName = pluginsDir / possibleName
+            found = found or (expectedName.exists() and ourDir.samefile(expectedName))
+
+        if not found:
             raise WrongFoldeNameException(
-                "Please rename overlay's folder to " + self.__required_plugin_dir
+                "Please rename overlay's folder to " + self.__required_plugin_dir[0]
             )
 
     def __isRequestedLarge(self, requested: str) -> bool:
