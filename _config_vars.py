@@ -98,7 +98,8 @@ class ConfigVars:
                 if m.json_name in obj:
                     if isinstance(obj[m.json_name], dict):
                         for k in obj[m.json_name]:
-                            m.field_ref[k].set(obj[m.json_name][k])
+                            if k in m.field_ref:
+                                m.field_ref[k].set(obj[m.json_name][k])
                     else:
                         m.field_ref.set(obj[m.json_name])
 
