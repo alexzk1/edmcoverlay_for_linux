@@ -6,7 +6,7 @@ Only API is ported, everything else is made from scratch. This repo supports X11
 
 ## New Features
 * TTF fonts are supported.
-* Now user can configure "normal"/"large" fonts' sizes from EDMC settings. Single config for all plugins for now.
+* Now user can configure "normal"/"large" fonts' sizes from EDMC settings. Single config for all plugins and font-size per installed EDMC's plugin are supported.
 * Added check if this plugin's folder is properly named `edmcoverlay`. It will crash if not.
 
 ## Example Screenshot(s)
@@ -20,7 +20,7 @@ Only API is ported, everything else is made from scratch. This repo supports X11
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
   the `xorg-dev` package may be sufficient), `cmake`.
 - Run script `create_binary.sh` it will handle all needed.
-- In the EDMC settings, configure the size and position of the overlay
+- In the EDMC settings, configure the size and position of the overlay, default fonts' sizes, sizes per plugin.
 
 ## Dependencies
 
