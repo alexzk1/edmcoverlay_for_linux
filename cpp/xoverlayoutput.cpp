@@ -281,45 +281,13 @@ public:
     Window    g_win{0};
     opaque_ptr<_XGC> single_gc{nullptr};
 
-    //FIXME: JSON parser does not accept incoming UTF-8 symbols too...
-    static std::size_t utf8CharLen(const std::string& str)
-    {
-        const auto strLen = str.length();
-        const std::string prev_loc = std::setlocale(LC_ALL, nullptr);
-        const bool need_change_locale = prev_loc.find(".UTF8") == std::string::npos;
-
-        if (need_change_locale)
-        {
-            static std::once_flag print_once;
-            std::call_once(print_once, [&prev_loc]()
-            {
-                std::cerr <<
-                          "Warning! Requested UTF-8 calculations in overlay while current locale is not UTF-8: LC_ALL=" <<
-                          prev_loc << std::endl;
-            });
-            return strLen;
-        }
-
-        unsigned int u = 0u;
-        const char *c_str = str.c_str();
-        std::size_t charCount = 0u;
-        while(u < strLen)
-        {
-            std::mbstate_t mb = std::mbstate_t();
-            u += std::mbrlen(&c_str[u], strLen - u, &mb);
-            charCount += 1;
-        }
-
-        return charCount;
-    }
-
     void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
                         int aX, int aY,
                         const std::string& aString, bool aRectangle) const
     {
         //https://github.com/jsynacek/xft-example/blob/master/main.c
 
-        const int length = utf8CharLen(aString);
+        const int length = aString.length();
         const FcChar8* str = reinterpret_cast<const FcChar8*>(aString.c_str());
 
         if (!aFont)
