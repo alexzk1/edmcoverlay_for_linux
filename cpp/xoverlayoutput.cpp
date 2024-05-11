@@ -139,10 +139,10 @@ private:
 
         static const std::vector<std::string> kFontsToTry =
         {
-            "Ubuntu Mono",
             "Liberation Mono",
             "DejaVu Sans Mono",
             "Source Code Pro",
+            "Ubuntu Mono",
             "Monospace",
             "Sans Serif",
             "Liberation Serif",
