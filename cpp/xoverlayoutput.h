@@ -20,6 +20,7 @@ public:
 
     void showVersionString(const std::string& version, const std::string& color) override;
     void draw(const draw_task::drawitem_t& drawitem) override;
+    std::string getFocusedWindowBinaryPath() override;
 private:
     std::shared_ptr<XPrivateAccess> xserv{nullptr};
 };

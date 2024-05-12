@@ -210,12 +210,12 @@ private:
             std::cerr << "NO shape extension in your system !" << std::endl;
             exit (-1);
         }
+
+        g_root    = DefaultRootWindow(g_display);
     }
     // Create a window
     void createShapedWindow()
     {
-        Window root    = DefaultRootWindow(g_display);
-
         auto vinfo = allocCType<XVisualInfo>();
         XMatchVisualInfo(g_display, g_screen, 32, TrueColor, &vinfo);
 
@@ -229,13 +229,13 @@ private:
         attr.event_mask = BASIC_EVENT_MASK;
         attr.do_not_propagate_mask = NOT_PROPAGATE_MASK;
         attr.override_redirect = 1; // OpenGL > 0
-        attr.colormap = XCreateColormap(g_display, root, vinfo.visual, AllocNone);
+        attr.colormap = XCreateColormap(g_display, g_root, vinfo.visual, AllocNone);
 
         //unsigned long mask = CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
         unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask | CWWinGravity |
                              CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
 
-        g_win = XCreateWindow(g_display, root, window_xpos, window_ypos, window_width, window_height, 0,
+        g_win = XCreateWindow(g_display, g_root, window_xpos, window_ypos, window_width, window_height, 0,
                               vinfo.depth, InputOutput, vinfo.visual, mask, &attr);
 
         /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char *)myshape_bits, myshape_width, myshape_height); */
@@ -269,6 +269,56 @@ private:
         return attrs;
     }
 
+    const unsigned char* const getWindowPropertyAny(const char* const aPropertyName,
+            const Window aWindow) const
+    {
+        constexpr int kMaximumReturnedCountOf32Bits = 1024;
+        if (aWindow == 0)
+        {
+            return nullptr;
+        }
+        Atom actual_type;
+        int actual_format;
+        unsigned long nitems, bytes_after;
+        unsigned char *prop = nullptr;
+
+        const auto filter_atom = XInternAtom(g_display, aPropertyName, True);
+        const auto status = XGetWindowProperty(g_display, aWindow, filter_atom, 0,
+                                               kMaximumReturnedCountOf32Bits, False,
+                                               AnyPropertyType,
+                                               &actual_type, &actual_format, &nitems, &bytes_after, &prop);
+
+        if (status != Success)
+        {
+            std::cerr << "XGetWindowProperty failed with status: " << status <<"."<< std::endl;
+        }
+
+        return prop;
+    }
+
+    template <typename ExpectedType, typename =
+              typename std::enable_if<std::is_integral<ExpectedType>::value>::type>
+    ExpectedType getWindowPropertyInt(const char* const aPropertyName,
+                                      const Window aWindow) const
+    {
+        constexpr auto kSize = sizeof(ExpectedType);
+        static_assert(kSize == 1 || kSize == 2
+                      || kSize == 4, "Only 8/16/32 bits are supported by XGetWindowProperty()");
+
+        ExpectedType tmp{0};
+        const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
+
+        memcpy(&tmp, ptr, sizeof(tmp));
+
+        return tmp;
+    }
+
+    std::string getWindowPropertyString(const char* const aPropertyName,
+                                        const Window aWindow) const
+    {
+        const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
+        return std::string(reinterpret_cast<const char* const>(ptr));
+    }
 public:
     const int window_xpos;
     const int window_ypos;
@@ -277,9 +327,10 @@ public:
     std::shared_ptr<MyXOverlayColorMap> colors{nullptr};
 
     opaque_ptr<Display> g_display{nullptr};
-    int       g_screen{0};
-    Window    g_win{0};
-    opaque_ptr<_XGC> single_gc{nullptr};
+    Window              g_root{0};
+    int                 g_screen{0};
+    Window              g_win{0};
+    opaque_ptr<_XGC>    single_gc{nullptr};
 
     void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
                         int aX, int aY,
@@ -324,6 +375,15 @@ public:
 
         //XftDrawRect(draw, color, 50, 50, 250, 250);
         XftDrawStringUtf8(draw, color, aFont, aX, aY + aFont->ascent, str, length);
+    }
+
+    //X11 does not support 64 bit pids.
+    std::uint32_t getFocusedWindowPid() const
+    {
+        Window focused;
+        int revert_to;
+        XGetInputFocus(g_display, &focused, &revert_to);
+        return getWindowPropertyInt<std::uint32_t>("_NET_WM_PID", focused);
     }
 };
 
@@ -387,4 +447,11 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
                            drawitem.y, drawitem.shape.w, drawitem.shape.h);
         }
     }
+}
+
+std::string XOverlayOutput::getFocusedWindowBinaryPath()
+{
+    const auto pid = xserv->getFocusedWindowPid();
+    //std::cout << "path = " << getBinaryPathForPid(pid) << std::endl;
+    return getBinaryPathForPid(pid);
 }

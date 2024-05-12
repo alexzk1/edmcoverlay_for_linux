@@ -12,6 +12,7 @@
 #include "drawables.h"
 #include "xoverlayoutput.h"
 #include "runners.h"
+#include "strutils.h"
 
 static const std::string stop_cmd = "NEED_TO_STOP";
 constexpr unsigned short port = 5010;
@@ -45,10 +46,17 @@ int main(int argc, char* argv[])
 {
     using namespace std::chrono_literals;
 
-    if (argc != 5)
+    //TODO: make it complete configurable from the Python code, default to empty here.
+    std::string programName = "EliteDangerous64.exe";
+
+    if (argc < 5 || argc > 6)
     {
-        std::cerr << "Usage: overlay X Y W H" << std::endl;
+        std::cerr << "Usage: overlay X Y W H [BinaryNameToOverlay]" << std::endl;
         return 1;
+    }
+    if (argc == 6)
+    {
+        programName = std::string(argv[5]);
     }
 
     auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
@@ -147,9 +155,19 @@ int main(int argc, char* argv[])
     });
 
     //Main thread loop. It draws and manages remove of the expired items.
+    constexpr auto kAppActivityCheck = 1500ms;
+    auto lastCheckTime   = std::chrono::steady_clock::now() - kAppActivityCheck;
+    bool targetAppActive = false;
     while (!thread_stopped_loop)
     {
         std::this_thread::sleep_for(500ms);
+        if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
+        {
+            lastCheckTime = std::chrono::steady_clock::now();
+            const auto focusedPath = drawer.getFocusedWindowBinaryPath();
+            targetAppActive = focusedPath.empty() || programName.empty()
+                              || utility::strcontains(focusedPath, programName);
+        }
 
         drawer.cleanFrame();
         {
@@ -166,9 +184,12 @@ int main(int argc, char* argv[])
                 }
             }
 
-            for (const auto& drawitem : allDraws)
+            if (targetAppActive)
             {
-                drawer.draw(drawitem.second);
+                for (const auto& drawitem : allDraws)
+                {
+                    drawer.draw(drawitem.second);
+                }
             }
         }
         drawer.flushFrame();

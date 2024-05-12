@@ -28,6 +28,7 @@ set(PROJECT_SOURCES
     cm_ctors.h
     opaque_ptr.h
     runners.h
+    strutils.h
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES})

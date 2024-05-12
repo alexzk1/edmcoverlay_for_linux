@@ -1,6 +1,11 @@
 #pragma once
+
+#include <cstdint>
+#include <fstream>
+
 #include "drawables.h"
 #include "cm_ctors.h"
+#include "strutils.h"
 
 //virtual base class (interface) for doing output
 class OutputLayer
@@ -13,8 +18,27 @@ public:
 
     virtual void cleanFrame() = 0;
     virtual void flushFrame() = 0;
+    virtual std::string getFocusedWindowBinaryPath() = 0;
     virtual void showVersionString(const std::string& src, const std::string& color) = 0;
     virtual void draw(const draw_task::drawitem_t& drawitem) = 0;
+
+
+    static std::string getBinaryPathForPid(const std::uint64_t pid)
+    {
+        std::string fulls;
+        std::fstream io(utility::string_sprintf("/proc/%zu/cmdline", pid),
+                        std::ios_base::in | std::ios_base::binary);
+        try
+        {
+            fulls = utility::read_stream_into_container(io);
+        }
+        catch (std::ios_base::failure& e)
+        {
+            std::cerr << e.what() <<std::endl;
+            return {};
+        }
+        return {fulls.c_str()};
+    }
 };
 
 //https://habr.com/ru/post/242639/
@@ -24,3 +48,4 @@ inline T& getStaticObject(Args&&... args)
     static T obj(std::forward<Args>(args)...);
     return obj;
 }
+
