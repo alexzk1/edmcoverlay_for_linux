@@ -53,15 +53,17 @@ def __start_overlay():
 
     if not __overlay_process:
         logger.info("Starting overlay.")
-        __overlay_process = Popen(
-            [
-                __find_overlay_binary(),
-                str(__configVars.iXPos.get()),
-                str(__configVars.iYPos.get()),
-                str(__configVars.iWidth.get()),
-                str(__configVars.iHeight.get()),
-            ]
-        )
+        cmd = [
+            __find_overlay_binary(),
+            str(__configVars.iXPos.get()),
+            str(__configVars.iYPos.get()),
+            str(__configVars.iWidth.get()),
+            str(__configVars.iHeight.get()),
+        ]
+        if __configVars.iTrackGame.get():
+            cmd.append("EliteDangerous64.exe")
+
+        __overlay_process = Popen(cmd)
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
         tmp.send_message(

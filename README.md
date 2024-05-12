@@ -5,6 +5,7 @@ This is port of the idea of [EDMC Overlay] to the Linux.
 Only API is ported, everything else is made from scratch. This repo supports X11 only yet.
 
 ## New Features
+* Added ability to detect if EliteDangerous is top window (has input focus) and hide overlay if not.
 * TTF fonts are supported.
 * Now user can configure "normal"/"large" fonts' sizes from EDMC settings. Single config for all plugins and font-size per installed EDMC's plugin are supported.
 * Added check if this plugin's folder is properly named `edmcoverlay` or `EDMCOverlay`. It will crash if not. Note, either of those 2 namings may break some other plugins. As authors of those use both. That should be addressed by broken plugins. Good loading code is present into EDMC-BioScan :

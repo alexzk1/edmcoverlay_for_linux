@@ -18,7 +18,7 @@ public:
 
     virtual void cleanFrame() = 0;
     virtual void flushFrame() = 0;
-    virtual std::string getFocusedWindowBinaryPath() = 0;
+    virtual std::string getFocusedWindowBinaryPath() const = 0;
     virtual void showVersionString(const std::string& src, const std::string& color) = 0;
     virtual void draw(const draw_task::drawitem_t& drawitem) = 0;
 

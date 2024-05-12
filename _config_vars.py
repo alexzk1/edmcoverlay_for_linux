@@ -38,6 +38,7 @@ class ConfigVars:
     iYPos: tk.IntVar = tk.IntVar(value=0)
     iWidth: tk.IntVar = tk.IntVar(value=1920)
     iHeight: tk.IntVar = tk.IntVar(value=1080)
+    iTrackGame: tk.BooleanVar = tk.BooleanVar(value=True)
     _iFontNorm: tk.IntVar = tk.IntVar(value=__defaultNormalFont)
     _iFontLarge: tk.IntVar = tk.IntVar(value=__defaultLargeFont)
     _iFontPerPlugin: dict = {}
@@ -71,6 +72,7 @@ class ConfigVars:
             self.__TJsonFieldMapper("ypos", self.iYPos, True),
             self.__TJsonFieldMapper("width", self.iWidth, True),
             self.__TJsonFieldMapper("height", self.iHeight, True),
+            self.__TJsonFieldMapper("track_game", self.iTrackGame, True),
             self.__TJsonFieldMapper("fontN", self._iFontNorm, False),
             self.__TJsonFieldMapper("fontL", self._iFontLarge, False),
             self.__TJsonFieldMapper("fontNPerPlagun", self._iFontPerPlugin, False),
@@ -129,6 +131,9 @@ class ConfigVars:
     def getVisualInputs(self):
         arr = [
             gb.TTextAndInputRow("Overlay Configuration:", None),
+            gb.TTextAndInputRow(
+                "Hide Overlay when game is not active (alt-tabbed):", self.iTrackGame
+            ),
             gb.TTextAndInputRow("X Position", self.iXPos),
             gb.TTextAndInputRow("Y Position", self.iYPos),
             gb.TTextAndInputRow("Width", self.iWidth),

@@ -166,7 +166,9 @@ namespace utility
     inline bool endsWith (std::string const &fullString, std::string const &ending)
     {
         if (fullString.length() >= ending.length())
+        {
             return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+        }
         return false;
     }
 
@@ -195,7 +197,9 @@ namespace utility
         for (const auto& w : what)
         {
             if (strcontains(src, w))
+            {
                 return true;
+            }
         }
         return false;
     }
@@ -207,9 +211,31 @@ namespace utility
         std::string tok;
 
         while (getline(ss, tok, delimiter))
+        {
             internal.push_back(tok);
+        }
 
         return internal;
+    }
+
+    // trim from left
+    inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
+    {
+        s.erase(0, s.find_first_not_of(t));
+        return s;
+    }
+
+    // trim from right
+    inline std::string& rtrim(std::string& s, const char* t = " \t\n\r\f\v")
+    {
+        s.erase(s.find_last_not_of(t) + 1);
+        return s;
+    }
+
+    // trim from left & right
+    inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v")
+    {
+        return ltrim(rtrim(s, t), t);
     }
 }
 #endif // STDSTRINGFMT_H

@@ -307,8 +307,10 @@ private:
 
         ExpectedType tmp{0};
         const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
-
-        memcpy(&tmp, ptr, sizeof(tmp));
+        if (ptr)
+        {
+            memcpy(&tmp, ptr, sizeof(tmp));
+        }
 
         return tmp;
     }
@@ -380,8 +382,8 @@ public:
     //X11 does not support 64 bit pids.
     std::uint32_t getFocusedWindowPid() const
     {
-        Window focused;
-        int revert_to;
+        Window focused = 0;
+        int revert_to = 0;
         XGetInputFocus(g_display, &focused, &revert_to);
         return getWindowPropertyInt<std::uint32_t>("_NET_WM_PID", focused);
     }
@@ -449,9 +451,13 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
     }
 }
 
-std::string XOverlayOutput::getFocusedWindowBinaryPath()
+std::string XOverlayOutput::getFocusedWindowBinaryPath() const
 {
     const auto pid = xserv->getFocusedWindowPid();
-    //std::cout << "path = " << getBinaryPathForPid(pid) << std::endl;
+    //std::cout << "Focused window: " << pid << std::endl;
+    if (0 == pid)
+    {
+        return {};
+    }
     return getBinaryPathForPid(pid);
 }
