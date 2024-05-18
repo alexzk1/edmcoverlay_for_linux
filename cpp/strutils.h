@@ -1,5 +1,4 @@
-#ifndef STDSTRINGFMT_H
-#define STDSTRINGFMT_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -237,5 +236,6 @@ namespace utility
     {
         return ltrim(rtrim(s, t), t);
     }
+
 }
-#endif // STDSTRINGFMT_H
+

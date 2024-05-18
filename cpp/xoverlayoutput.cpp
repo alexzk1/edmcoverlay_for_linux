@@ -18,7 +18,7 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
-#include <cwchar>
+
 
 // Events for normal windows
 constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask |
@@ -333,6 +333,19 @@ public:
     int                 g_screen{0};
     Window              g_win{0};
     opaque_ptr<_XGC>    single_gc{nullptr};
+
+    static int utf8CharactersCount(const std::string& str)
+    {
+        int count = 0;
+        for (const auto& c : str)
+        {
+            if ((c & 0x80) == 0 || (c & 0xc0) == 0xc0)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
 
     void drawUtf8String(const opaque_ptr<XftFont>& aFont, const std::string& aColor,
                         int aX, int aY,

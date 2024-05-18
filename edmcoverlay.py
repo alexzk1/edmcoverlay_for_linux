@@ -51,13 +51,14 @@ class OverlayImpl:
         self._send_raw_text("NEED_TO_STOP")
 
     def _send_raw_text(self, inpstr: str):
-        bstr = bytes(inpstr, "UTF-8")
+        inpstr = inpstr.replace("\\u202f", "\\u00a0")
+        bstr = inpstr.encode("utf-8")
         for retries in range(1, 7):
             try:
                 with self.__lock:
                     conn = socket.socket()
                     conn.connect((self._host, self._port))
-                    conn.send(str(len(bstr)).encode() + b"#" + bstr)
+                    conn.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
                     conn.close()
                     break
             except socket.error as e:
