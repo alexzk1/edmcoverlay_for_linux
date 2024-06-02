@@ -14,18 +14,17 @@
 #include "runners.h"
 #include "strutils.h"
 
-static const std::string stop_cmd = "NEED_TO_STOP";
 constexpr unsigned short port = 5010;
 
 static std::shared_ptr<std::thread> serverThread{nullptr};
 
 static void sighandler(int signum)
 {
-    std::cout << "edmcoverlay2: got signal " << signum << std::endl;
+    std::cout << "edmc_linux_overlay: got signal " << signum << std::endl;
 
     if ((signum == SIGINT) || (signum == SIGTERM))
     {
-        std::cout << "edmcoverlay2: SIGINT/SIGTERM, exiting" << std::endl;
+        std::cout << "edmc_linux_overlay: SIGINT/SIGTERM, exiting" << std::endl;
         serverThread.reset();
         exit(0);
     }
@@ -70,13 +69,11 @@ int main(int argc, char* argv[])
     drawer.flushFrame();
     //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
-    std::atomic_bool thread_stopped_loop{false};
-
     std::mutex mut;
     draw_task::draw_items_t allDraws;
 
     //FIXME: replace all that by boost:asio
-    serverThread = utility::startNewRunner([&thread_stopped_loop, &mut,
+    serverThread = utility::startNewRunner([&mut,
                                             &allDraws](auto should_close_ptr)
     {
         std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p)
@@ -90,7 +87,6 @@ int main(int argc, char* argv[])
             }
         });
 
-        std::atomic<std::int64_t> detachedCounter{0};
         while (!(*should_close_ptr))
         {
             auto socket = server->accept_autoclose(should_close_ptr);
@@ -100,58 +96,43 @@ int main(int argc, char* argv[])
             }
 
             //Let the while() continue and start to listen back ASAP.
-            ++detachedCounter;
-            std::thread([socket = std::move(socket), should_close_ptr, &allDraws, &mut, &detachedCounter]()
+            std::thread([socket = std::move(socket), &allDraws, &mut]()
             {
                 try
                 {
                     const std::string request = read_response(*socket);
                     //std::cout << "Request: " << request << std::endl;
 
-                    if (request == stop_cmd)
+                    draw_task::draw_items_t incoming_draws;
+                    try
                     {
-                        *should_close_ptr = true;
+                        incoming_draws = draw_task::parseJsonString(request);
                     }
-                    else
+                    catch (std::exception& e)
                     {
-                        draw_task::draw_items_t incoming_draws;
-                        try
-                        {
-                            incoming_draws = draw_task::parseJsonString(request);
-                        }
-                        catch (std::exception& e)
-                        {
-                            std::cerr << "Json parse failed with message: " << e.what() << std::endl;
-                            incoming_draws.clear();
-                        }
-                        catch (...)
-                        {
-                            std::cerr << "Json parse failed with uknnown reason." << std::endl;
-                            incoming_draws.clear();
-                        }
+                        std::cerr << "Json parse failed with message: " << e.what() << std::endl;
+                        incoming_draws.clear();
+                    }
+                    catch (...)
+                    {
+                        std::cerr << "Json parse failed with uknnown reason." << std::endl;
+                        incoming_draws.clear();
+                    }
 
-                        if (!incoming_draws.empty())
-                        {
-                            std::lock_guard grd(mut);
-                            incoming_draws.merge(allDraws);
-                            allDraws.clear();
-                            std::swap(allDraws, incoming_draws);
-                        }
+                    if (!incoming_draws.empty())
+                    {
+                        std::lock_guard grd(mut);
+                        incoming_draws.merge(allDraws);
+                        allDraws.clear();
+                        std::swap(allDraws, incoming_draws);
                     }
+
                 }
                 catch(...)
                 {
                 }
-                --detachedCounter;
             }).detach();
         };
-
-        while (detachedCounter > 0)
-        {
-            std::this_thread::sleep_for(100ms);
-        }
-
-        thread_stopped_loop = true;
     });
 
     //Main thread loop. It draws and manages remove of the expired items.
@@ -160,9 +141,38 @@ int main(int argc, char* argv[])
         constexpr auto kAppActivityCheck = 1500ms;
         auto lastCheckTime   = std::chrono::steady_clock::now() - kAppActivityCheck;
         bool targetAppActive = false;
-        while (!thread_stopped_loop)
+        bool commandHideLayer = false;
+
+        const std::map<std::string, std::function<bool()>> commandCallbacks =
         {
-            std::this_thread::sleep_for(500ms);
+            {
+                "exit", [&]()
+                {
+                    serverThread.reset();
+                    //Skipping next loop by false here
+                    targetAppActive = false;
+                    return true; //break the loop
+                }
+            },
+            {
+                "overlay_on", [&]()
+                {
+                    commandHideLayer = false;
+                    return false;
+                }
+            },
+            {
+                "overlay_off", [&]()
+                {
+                    commandHideLayer = true;
+                    return false;
+                }
+            },
+        };
+
+        while (serverThread->joinable())
+        {
+            std::this_thread::sleep_for(100ms);
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
             {
                 lastCheckTime  = std::chrono::steady_clock::now();
@@ -175,7 +185,21 @@ int main(int argc, char* argv[])
                 std::lock_guard grd(mut);
                 for(auto iter = allDraws.begin(); iter != allDraws.end(); )
                 {
-                    if (iter->second.isExpired())
+                    const bool isCommand = iter->second.isCommand();
+                    if (isCommand)
+                    {
+                        //std::cout << iter->second.command << std::endl;
+                        const auto cmd_iter = commandCallbacks.find(iter->second.command);
+                        if (cmd_iter != commandCallbacks.end())
+                        {
+                            if (cmd_iter->second())
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isCommand || iter->second.isExpired())
                     {
                         iter = allDraws.erase(iter);
                     }
@@ -185,7 +209,7 @@ int main(int argc, char* argv[])
                     }
                 }
 
-                if (targetAppActive)
+                if (targetAppActive && !commandHideLayer)
                 {
                     for (const auto& drawitem : allDraws)
                     {
@@ -203,6 +227,8 @@ int main(int argc, char* argv[])
 
     serverThread.reset();
 
+    //Wait while all detached threads will stop writting parsed messages.
+    std::lock_guard grd(mut);
     return 0;
 }
 

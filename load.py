@@ -12,6 +12,7 @@ import _config_vars as cfv
 import _gui_builder as gb
 import edmcoverlay
 from _logger import logger
+from typing import Tuple
 
 logger.debug("Loading plugin...")
 
@@ -20,6 +21,9 @@ __overlay_process: Popen = None
 __configVars: cfv.ConfigVars = cfv.ConfigVars()
 
 __configVars.raiseIfWrongNamed()
+
+# This is variable controlled from the main screen. It should not be saved. But it sends message to the running app to hide overlay temporary.
+__iHideButDoNotStopOverlay: tk.BooleanVar = tk.BooleanVar(value=False)
 
 
 logger.debug("Instantiating class OverlayImpl ...")
@@ -50,6 +54,7 @@ def __find_overlay_binary() -> Path:
 def __start_overlay():
     global __overlay_process
     global __configVars
+    global __iHideButDoNotStopOverlay
 
     if not __overlay_process:
         logger.info("Starting overlay.")
@@ -69,6 +74,8 @@ def __start_overlay():
         tmp.send_message(
             "edmcintro", "EDMC Overlay for Linux is Ready", "yellow", 30, 165, ttl=10
         )
+
+        __iHideButDoNotStopOverlay.set(False)
     else:
         logger.debug("Overlay is already running, skipping the start.")
 
@@ -76,7 +83,7 @@ def __start_overlay():
 def __stop_overlay():
     global __overlay_process
     if __overlay_process:
-        logger.info("Stopping overlay.")
+        logger.info("Stopping overlay binary.")
         __the_overlay._stop()
         time.sleep(1)
         if __overlay_process.poll() is None:
@@ -118,6 +125,7 @@ def plugin_stop():
 
 
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
+    # Settings frame
     global __configVars
 
     mainFrame = nb.Frame(parent)
@@ -179,3 +187,36 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     if __configVars.saveToSettings() and __overlay_process is not None:
         __stop_overlay()
         __start_overlay()
+
+
+def __hide_overlay():
+    global __the_overlay
+    __the_overlay.send_command("overlay_off")
+
+
+def __show_overlay():
+    global __the_overlay
+    __the_overlay.send_command("overlay_on")
+
+
+def plugin_app(parent: tk.Frame) -> Tuple[tk.Radiobutton, tk.Radiobutton]:
+    # Main window frame
+
+    global __iHideButDoNotStopOverlay
+
+    btnShow = tk.Radiobutton(
+        parent,
+        variable=__iHideButDoNotStopOverlay,
+        value=False,
+        text="Show Overlay",
+        command=lambda: __show_overlay(),
+    )
+
+    btnHide = tk.Radiobutton(
+        parent,
+        variable=__iHideButDoNotStopOverlay,
+        value=True,
+        text="Hide Overlay",
+        command=lambda: __hide_overlay(),
+    )
+    return btnShow, btnHide

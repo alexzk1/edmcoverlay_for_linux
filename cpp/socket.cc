@@ -17,7 +17,7 @@
 #include <chrono>
 
 constexpr int MAXPENDING = 15; // maximum outstanding connection requests
-constexpr std::chrono::milliseconds kAcceptPollTimeout(5000);
+constexpr std::chrono::milliseconds kAcceptPollTimeout(500);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //wait()

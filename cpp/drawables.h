@@ -49,6 +49,7 @@ namespace draw_task
     {
         timestamp_t ttl;
         std::string id;
+        std::string command;
 
         drawmode_t  drawmode{drawmode_t::idk};
 
@@ -79,6 +80,11 @@ namespace draw_task
         {
             return ttl.isExpired();
         }
+
+        bool isCommand() const
+        {
+            return !command.empty();
+        }
     };
 
     using draw_items_t = std::map<std::string, drawitem_t>;
@@ -89,6 +95,7 @@ namespace draw_task
     * shape: "rect"
     * size: "normal", "large"
     * fontSize: if given, overrides "size" field. This is TTF font's size.
+    * command: text string command.
     */
     inline draw_items_t parseJsonString(const std::string& src)
     {
@@ -117,6 +124,7 @@ namespace draw_task
             {"id", LHDR{drawitem.id = NSTR;}},
             {"msgid", LHDR{drawitem.id = NSTR;}},
             {"shapeid", LHDR{drawitem.id = NSTR;}},
+            {"command", LHDR{drawitem.command = NSTR; }},
         };
 #undef NINT
 #undef NSTR
@@ -148,7 +156,7 @@ namespace draw_task
                     std::cout << "bad key: \"" << kv.key() <<"\"" << std::endl;
                 }
             }
-            if (drawitem.drawmode != draw_task::drawmode_t::idk)
+            if (drawitem.drawmode != draw_task::drawmode_t::idk || drawitem.isCommand())
             {
                 if (drawitem.id.empty())
                 {

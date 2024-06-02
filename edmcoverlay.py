@@ -48,7 +48,7 @@ class OverlayImpl:
 
     def _stop(self):
         logger.info("Sending self-stop/exit request to the binary.")
-        self._send_raw_text("NEED_TO_STOP")
+        self.send_command("exit")
 
     def _send_raw_text(self, inpstr: str):
         inpstr = inpstr.replace("\\u202f", "\\u00a0")
@@ -80,6 +80,9 @@ class OverlayImpl:
             msg["font_size"] = self.__config.getFontSize(owner, font)
 
         self._send_raw_text(json.dumps(msg))
+
+    def send_command(self, command: str):
+        self._send_raw_text(json.dumps({"command": command}))
 
     def send_message(
         self,
@@ -150,6 +153,9 @@ class Overlay:
         if "id" in msg:
             msg["id"] = self.__token + msg["id"]
         return self.__overlay._send2bin(self.__caller_path, msg)
+
+    def send_command(self, command: str):
+        self.__overlay.send_command(command)
 
     def send_message(
         self,
