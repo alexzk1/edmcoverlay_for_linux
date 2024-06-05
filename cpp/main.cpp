@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     drawer.flushFrame();
     //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
-    std::mutex mut;
+    const auto mut = std::make_shared<std::mutex>();
     draw_task::draw_items_t allDraws;
 
     //FIXME: replace all that by boost:asio
@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
             }
 
             //Let the while() continue and start to listen back ASAP.
-            std::thread([socket = std::move(socket), &allDraws, &mut, should_close_ptr]()
+            std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr]()
             {
                 try
                 {
@@ -121,7 +121,7 @@ int main(int argc, char* argv[])
 
                     if (!incoming_draws.empty())
                     {
-                        std::lock_guard grd(mut);
+                        std::lock_guard grd(*mut);
                         if ((!(*should_close_ptr)))
                         {
                             incoming_draws.merge(allDraws);
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 
             drawer.cleanFrame();
             {
-                std::lock_guard grd(mut);
+                std::lock_guard grd(*mut);
                 for(auto iter = allDraws.begin(); iter != allDraws.end(); )
                 {
                     const bool isCommand = iter->second.isCommand();
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
     serverThread.reset();
 
     //Wait while all detached threads will stop writting parsed messages.
-    std::lock_guard grd(mut);
+    std::lock_guard grd(*mut);
     return 0;
 }
 
