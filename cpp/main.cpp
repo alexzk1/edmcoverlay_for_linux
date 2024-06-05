@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
             }
 
             //Let the while() continue and start to listen back ASAP.
-            std::thread([socket = std::move(socket), &allDraws, &mut]()
+            std::thread([socket = std::move(socket), &allDraws, &mut, should_close_ptr]()
             {
                 try
                 {
@@ -122,9 +122,12 @@ int main(int argc, char* argv[])
                     if (!incoming_draws.empty())
                     {
                         std::lock_guard grd(mut);
-                        incoming_draws.merge(allDraws);
-                        allDraws.clear();
-                        std::swap(allDraws, incoming_draws);
+                        if ((!(*should_close_ptr)))
+                        {
+                            incoming_draws.merge(allDraws);
+                            allDraws.clear();
+                            std::swap(allDraws, incoming_draws);
+                        }
                     }
 
                 }
