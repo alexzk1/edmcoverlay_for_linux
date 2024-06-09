@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
             },
         };
 
-        while (serverThread->joinable())
+        while (serverThread)
         {
             std::this_thread::sleep_for(100ms);
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
