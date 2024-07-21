@@ -7,6 +7,7 @@
 #include <string>
 #include <optional>
 #include <map>
+#include <tuple>
 
 #include "json.hpp"
 
@@ -52,6 +53,8 @@ namespace draw_task
         std::string command;
 
         drawmode_t  drawmode{drawmode_t::idk};
+        //Anti-flickering field,
+        bool already_rendered{false};
 
         // common
         int x{0};
@@ -64,6 +67,15 @@ namespace draw_task
             std::string text;
             std::string size;
             std::optional<int> fontSize{std::nullopt};
+            bool operator==(const drawtext_t& other) const
+            {
+                static const auto tie = [](const drawtext_t& val)
+                {
+                    return std::tie(val.text, val.size, val.fontSize);
+                };
+
+                return tie(*this) == tie(other);
+            }
         } text;
 
         struct drawshape_t
@@ -74,7 +86,26 @@ namespace draw_task
             int w{0};
             int h{0};
             json vect;
+
+            bool operator==(const drawshape_t& other) const
+            {
+                static const auto tie = [](const drawshape_t& val)
+                {
+                    return std::tie(val.shape, val.fill, val.w, val.h, val.vect);
+                };
+
+                return tie(*this) == tie(other);
+            }
         } shape;
+
+        bool IsEqualStoredData(const drawitem_t& other) const
+        {
+            static const auto tie = [](const drawitem_t& item)
+            {
+                return std::tie(item.id, item.drawmode, item.color, item.text, item.shape);
+            };
+            return tie(*this) == tie(other);
+        }
 
         bool isExpired() const
         {
@@ -84,6 +115,11 @@ namespace draw_task
         bool isCommand() const
         {
             return !command.empty();
+        }
+
+        void SetAlreadyRendered()
+        {
+            already_rendered = true;
         }
     };
 

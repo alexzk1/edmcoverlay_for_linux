@@ -6,6 +6,11 @@
 #include <csignal>
 #include <mutex>
 #include <map>
+#include <memory>
+#include <thread>
+#include <functional>
+#include <string>
+#include <stdexcept>
 
 #include "socket.hh"
 #include "json_message.hh"
@@ -125,7 +130,24 @@ int main(int argc, char* argv[])
                         if ((!(*should_close_ptr)))
                         {
                             incoming_draws.merge(allDraws);
-                            allDraws.clear();
+
+                            //Anti-flickering support.
+                            if (!allDraws.empty())
+                            {
+                                for (const auto& old : allDraws)
+                                {
+                                    const auto it = incoming_draws.find(old.first);
+                                    if (it != incoming_draws.end())
+                                    {
+                                        if (it->second.IsEqualStoredData(old.second))
+                                        {
+                                            it->second.SetAlreadyRendered();
+                                        }
+                                    }
+                                }
+                                allDraws.clear();
+                            }
+
                             std::swap(allDraws, incoming_draws);
                         }
                     }
@@ -173,6 +195,7 @@ int main(int argc, char* argv[])
             },
         };
 
+        bool window_was_hidden = false;
         while (serverThread)
         {
             std::this_thread::sleep_for(100ms);
@@ -182,10 +205,9 @@ int main(int argc, char* argv[])
                 targetAppActive = programName.empty()
                                   || utility::strcontains(drawer.getFocusedWindowBinaryPath(), programName);
             }
-
-            drawer.cleanFrame();
             {
                 std::lock_guard grd(*mut);
+                bool skip_render = true;
                 for(auto iter = allDraws.begin(); iter != allDraws.end(); )
                 {
                     const bool isCommand = iter->second.isCommand();
@@ -197,13 +219,17 @@ int main(int argc, char* argv[])
                         {
                             if (cmd_iter->second())
                             {
+                                skip_render = false;
                                 break;
                             }
                         }
                     }
 
+                    skip_render = skip_render && iter->second.already_rendered;
+
                     if (isCommand || iter->second.isExpired())
                     {
+                        skip_render = false;
                         iter = allDraws.erase(iter);
                     }
                     else
@@ -214,13 +240,28 @@ int main(int argc, char* argv[])
 
                 if (targetAppActive && !commandHideLayer)
                 {
-                    for (const auto& drawitem : allDraws)
+                    if (!skip_render || window_was_hidden)
                     {
-                        drawer.draw(drawitem.second);
+                        drawer.cleanFrame();
+                        for (auto& drawitem : allDraws)
+                        {
+                            drawer.draw(drawitem.second);
+                            drawitem.second.SetAlreadyRendered();
+                        }
+                        drawer.flushFrame();
                     }
+                    window_was_hidden = false;
+                }
+                else
+                {
+                    if (!window_was_hidden)
+                    {
+                        drawer.cleanFrame();
+                        drawer.flushFrame();
+                    }
+                    window_was_hidden = true;
                 }
             }
-            drawer.flushFrame();
         }
     }
     catch(...)
