@@ -1,0 +1,16 @@
+--- cpp/main.cpp
++++ cpp/main.cpp
+@@ -148,13 +148,6 @@ int main(int argc, char* argv[])
+                                 allDraws.clear();
+                             }
+ 
+-                            //If the same data with different IDs, than keep latest ID
+-                            for(auto iter = incoming_draws.begin(),
+-                                    end = std::prev(incoming_draws.end()); iter != end; )
+-                            {
+-
+-                            }
+-
+                             std::swap(allDraws, incoming_draws);
+                         }
+                     }

@@ -53,9 +53,6 @@ namespace draw_task
         std::string command;
 
         drawmode_t  drawmode{drawmode_t::idk};
-        //Anti-flickering field,
-        bool already_rendered{false};
-
         // common
         int x{0};
         int y{0};
@@ -98,11 +95,14 @@ namespace draw_task
             }
         } shape;
 
+        //Anti-flickering field,
+        bool already_rendered{false};
+
         bool IsEqualStoredData(const drawitem_t& other) const
         {
             static const auto tie = [](const drawitem_t& item)
             {
-                return std::tie(item.id, item.drawmode, item.color, item.text, item.shape);
+                return std::tie(item.drawmode, item.color, item.text, item.shape, item.x, item.y, item.color);
             };
             return tie(*this) == tie(other);
         }

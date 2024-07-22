@@ -35,37 +35,6 @@ static void sighandler(int signum)
     }
 }
 
-static void RemoveRenamedDuplicates( draw_task::draw_items_t& src)
-{
-    for (auto iter = src.begin(); iter != std::prev(src.end()); )
-    {
-        const auto dup = std::find_if(std::next(iter), src.end(), [&iter](const auto& item)
-        {
-            return item.second.IsEqualStoredData(iter->second);
-        });
-
-        if (dup == src.end())
-        {
-            ++iter;
-        }
-        else
-        {
-            const bool rendered = iter->second.already_rendered || dup->second.already_rendered;
-            if (iter->second.ttl.created_at < dup->second.ttl.created_at)
-            {
-                dup->second.already_rendered = rendered;
-                iter = src.erase(iter);
-            }
-            else
-            {
-                iter->second.already_rendered = rendered;
-                src.erase(dup);
-                ++iter;
-            }
-        }
-    }
-}
-
 /*
  * FYI: test string to send over "telnet 127.0.0.1 5010"
 
@@ -178,7 +147,6 @@ int main(int argc, char* argv[])
                                 }
                                 allDraws.clear();
                             }
-                            RemoveRenamedDuplicates(incoming_draws);
                             std::swap(allDraws, incoming_draws);
                         }
                     }
