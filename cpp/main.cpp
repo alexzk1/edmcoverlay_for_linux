@@ -10,7 +10,6 @@
 #include <thread>
 #include <functional>
 #include <string>
-#include <stdexcept>
 
 #include "socket.hh"
 #include "json_message.hh"
