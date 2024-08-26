@@ -23,7 +23,7 @@ private:
     const int g_screen;
     const XWindowAttributes g_attrs;
 
-    std::map<std::string, XColor>               known_xcolors;
+    std::map<std::string, XColor> known_xcolors;
     std::map<std::string, opaque_ptr<XftColor>> known_fontcolors;
 
     struct TRGBAColor
@@ -55,7 +55,8 @@ public:
     MyXOverlayColorMap() = delete;
 
     //we take reference here to object, so this map must be destroyed prior object destroyed
-    MyXOverlayColorMap(const opaque_ptr<Display>& g_display, int g_screen, XWindowAttributes g_attrs):
+    MyXOverlayColorMap(const opaque_ptr<Display>& g_display, int g_screen,
+                       XWindowAttributes g_attrs):
         g_display(g_display),
         g_screen(g_screen),
         g_attrs(g_attrs)
@@ -166,7 +167,6 @@ private:
         {
             throw std::runtime_error("createXColorFromRGB: Cannot create color");
         }
-
 
         color.pixel = (color.pixel & 0x00ffffffu) | (aRGBA.alpha << 24);
         return color;

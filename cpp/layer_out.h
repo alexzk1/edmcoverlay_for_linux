@@ -22,7 +22,6 @@ public:
     virtual void showVersionString(const std::string& src, const std::string& color) = 0;
     virtual void draw(const draw_task::drawitem_t& drawitem) = 0;
 
-
     static std::string getBinaryPathForPid(const std::uint64_t pid)
     {
         std::string fulls;
@@ -48,4 +47,3 @@ inline T& getStaticObject(Args&&... args)
     static T obj(std::forward<Args>(args)...);
     return obj;
 }
-

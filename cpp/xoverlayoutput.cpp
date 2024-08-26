@@ -19,15 +19,17 @@
 #include <vector>
 #include <unordered_map>
 
-
 // Events for normal windows
-constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask |
-    EnterWindowMask | LeaveWindowMask | KeyPressMask | KeyReleaseMask | KeymapStateMask;
+constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask |
+                                         PropertyChangeMask |
+                                         EnterWindowMask | LeaveWindowMask | KeyPressMask | KeyReleaseMask | KeymapStateMask;
 
-constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | ButtonPressMask |
-    ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
+constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask |
+                                           ButtonPressMask |
+                                           ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
 
-constexpr static long event_mask = StructureNotifyMask | ExposureMask | PropertyChangeMask |
+constexpr static long event_mask = StructureNotifyMask | ExposureMask |
+                                   PropertyChangeMask |
                                    EnterWindowMask |
                                    LeaveWindowMask | KeyRelease | ButtonPress | ButtonRelease | KeymapStateMask;
 
@@ -36,9 +38,11 @@ class XPrivateAccess
 public:
 
     template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
-    auto Allocate(taDeAllocator aDeallocate, taAllocator aAllocate, taAllocArgs&& ...aArgs) const
+    auto Allocate(taDeAllocator aDeallocate, taAllocator aAllocate,
+                  taAllocArgs&& ...aArgs) const
     {
-        return AllocateOpaque<T>([this, dealloc = std::forward<taDeAllocator>(aDeallocate)](auto *ptr)
+        return AllocateOpaque<T>([this,
+                                  dealloc = std::forward<taDeAllocator>(aDeallocate)](auto* ptr)
         {
             if (ptr)
             {
@@ -48,9 +52,9 @@ public:
         }, std::forward<taAllocator>(aAllocate), std::forward<taAllocArgs>(aArgs)...);
     }
 
-
     XPrivateAccess() = delete;
-    XPrivateAccess(int window_xpos, int window_ypos, int window_width, int window_height):
+    XPrivateAccess(int window_xpos, int window_ypos, int window_width,
+                   int window_height):
         window_xpos(window_xpos), window_ypos(window_ypos),
         window_width(window_width), window_height(window_height)
     {
@@ -108,7 +112,7 @@ public:
     {
         //large = normal + kDeltaFontDifference
         constexpr int kDeltaFontDifference = 4;
-        constexpr int kNormalFontSize      = 16;
+        constexpr int kNormalFontSize = 16;
 
         //FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
         //From the other side, existing plugins send fixed distance between strings.
@@ -176,7 +180,7 @@ private:
 
     void openDisplay()
     {
-        g_display = std::shared_ptr<Display>(XOpenDisplay(0), [](Display * p)
+        g_display = std::shared_ptr<Display>(XOpenDisplay(0), [](Display* p)
         {
             if (p)
             {
@@ -195,23 +199,24 @@ private:
         if (!cmOwner)
         {
             std::cerr << "Composite manager is absent." << std::endl;
-            std::cerr << "Please check instructions: https://wiki.archlinux.org/index.php/Xcompmgr" <<
+            std::cerr <<
+                      "Please check instructions: https://wiki.archlinux.org/index.php/Xcompmgr" <<
                       std::endl;
             exit(-1);
         }
-        g_screen    = DefaultScreen(g_display);
+        g_screen = DefaultScreen(g_display);
 
         // Has shape extions?
-        int     shape_event_base;
-        int     shape_error_base;
+        int shape_event_base;
+        int shape_error_base;
 
-        if (!XShapeQueryExtension (g_display, &shape_event_base, &shape_error_base))
+        if (!XShapeQueryExtension(g_display, &shape_event_base, &shape_error_base))
         {
             std::cerr << "NO shape extension in your system !" << std::endl;
-            exit (-1);
+            exit(-1);
         }
 
-        g_root    = DefaultRootWindow(g_display);
+        g_root = DefaultRootWindow(g_display);
     }
     // Create a window
     void createShapedWindow()
@@ -232,31 +237,32 @@ private:
         attr.colormap = XCreateColormap(g_display, g_root, vinfo.visual, AllocNone);
 
         //unsigned long mask = CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
-        unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask | CWWinGravity |
+        unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask |
+                             CWWinGravity |
                              CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
 
-        g_win = XCreateWindow(g_display, g_root, window_xpos, window_ypos, window_width, window_height, 0,
+        g_win = XCreateWindow(g_display, g_root, window_xpos, window_ypos, window_width,
+                              window_height, 0,
                               vinfo.depth, InputOutput, vinfo.visual, mask, &attr);
 
         /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char *)myshape_bits, myshape_width, myshape_height); */
 
         //XShapeCombineMask(g_display, g_win, ShapeBounding, 900, 500, g_bitmap, ShapeSet);
-        XShapeCombineMask(g_display, g_win, ShapeInput, 0, 0, None, ShapeSet );
+        XShapeCombineMask(g_display, g_win, ShapeInput, 0, 0, None, ShapeSet);
 
         // We want shape-changed event too
-        XShapeSelectInput (g_display, g_win, ShapeNotifyMask);
+        XShapeSelectInput(g_display, g_win, ShapeNotifyMask);
 
         // Tell the Window Manager not to draw window borders (frame) or title.
         auto wattr = allocCType<XSetWindowAttributes>();
         wattr.override_redirect = 1;
         XChangeWindowAttributes(g_display, g_win, CWOverrideRedirect, &wattr);
 
-
         //pass through input
-        XserverRegion region = XFixesCreateRegion (g_display, NULL, 0);
+        XserverRegion region = XFixesCreateRegion(g_display, NULL, 0);
         //XFixesSetWindowShapeRegion (g_display, w, ShapeBounding, 0, 0, 0);
-        XFixesSetWindowShapeRegion (g_display, g_win, ShapeInput, 0, 0, region);
-        XFixesDestroyRegion (g_display, region);
+        XFixesSetWindowShapeRegion(g_display, g_win, ShapeInput, 0, 0, region);
+        XFixesDestroyRegion(g_display, region);
 
         // Show the window
         XMapWindow(g_display, g_win);
@@ -270,7 +276,7 @@ private:
     }
 
     const unsigned char* const getWindowPropertyAny(const char* const aPropertyName,
-            const Window aWindow) const
+                                                    const Window aWindow) const
     {
         constexpr int kMaximumReturnedCountOf32Bits = 1024;
         if (aWindow == 0)
@@ -280,7 +286,7 @@ private:
         Atom actual_type;
         int actual_format;
         unsigned long nitems, bytes_after;
-        unsigned char *prop = nullptr;
+        unsigned char* prop = nullptr;
 
         const auto filter_atom = XInternAtom(g_display, aPropertyName, True);
         const auto status = XGetWindowProperty(g_display, aWindow, filter_atom, 0,
@@ -329,10 +335,10 @@ public:
     std::shared_ptr<MyXOverlayColorMap> colors{nullptr};
 
     opaque_ptr<Display> g_display{nullptr};
-    Window              g_root{0};
-    int                 g_screen{0};
-    Window              g_win{0};
-    opaque_ptr<_XGC>    single_gc{nullptr};
+    Window g_root{0};
+    int g_screen{0};
+    Window g_win{0};
+    opaque_ptr<_XGC> single_gc{nullptr};
 
     static int utf8CharactersCount(const std::string& str)
     {
@@ -364,11 +370,11 @@ public:
         if (aRectangle)
         {
             XGlyphInfo extents;
-            XftTextExtentsUtf8 (g_display,
-                                aFont,
-                                str,
-                                length,
-                                &extents);
+            XftTextExtentsUtf8(g_display,
+                               aFont,
+                               str,
+                               length,
+                               &extents);
 
             const auto& black = colors->get("black");
             XSetForeground(g_display, single_gc, black.pixel);
@@ -386,7 +392,7 @@ public:
                                             attrs.visual,
                                             attrs.colormap);
         assert(XftDrawColormap(draw) == attrs.colormap);
-        assert(XftDrawVisual(draw)   == attrs.visual);
+        assert(XftDrawVisual(draw) == attrs.visual);
 
         //XftDrawRect(draw, color, 50, 50, 250, 250);
         XftDrawStringUtf8(draw, color, aFont, aX, aY + aFont->ascent, str, length);
@@ -428,12 +434,13 @@ void XOverlayOutput::flushFrame()
     xserv->flush();
 }
 
-void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
+void XOverlayOutput::showVersionString(const std::string& version,
+                                       const std::string& color)
 {
     xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, true);
 }
 
-void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
+void XOverlayOutput::draw(const draw_task::drawitem_t& drawitem)
 {
     const auto& gc = xserv->single_gc;
     const auto& g_display = xserv->g_display;
@@ -443,14 +450,16 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
     {
         const auto& font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
                            : xserv->getFont(drawitem.text.size);
-        xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text, false);
+        xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y,
+                              drawitem.text.text, false);
     }
     else
     {
         XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
 
-        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2,
-                             int y2)
+        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1,
+                                                                int x2,
+                                                                int y2)
         {
             XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
         });

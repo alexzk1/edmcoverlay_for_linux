@@ -35,9 +35,9 @@ static void sighandler(int signum)
     }
 }
 
-static void RemoveRenamedDuplicates( draw_task::draw_items_t& src)
+static void RemoveRenamedDuplicates(draw_task::draw_items_t& src)
 {
-    for (auto iter = src.begin(); iter != std::prev(src.end()); )
+    for (auto iter = src.begin(); iter != std::prev(src.end());)
     {
         const auto dup = std::find_if(std::next(iter), src.end(), [&iter](const auto& item)
         {
@@ -67,14 +67,14 @@ static void RemoveRenamedDuplicates( draw_task::draw_items_t& src)
 }
 
 /*
- * FYI: test string to send over "telnet 127.0.0.1 5010"
+    FYI: test string to send over "telnet 127.0.0.1 5010"
 
-111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
-110#{"id": "test1", "text": "You are low on fuel!", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
-128#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "font_size": 70, "color": "red", "x": 200, "y": 100, "ttl": 8}
+    111#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 200, "y": 100, "ttl": 8}
+    110#{"id": "test1", "text": "You are low on fuel!", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
+    128#{"id": "test1", "text": "You are low on fuel!", "size": "normal", "font_size": 70, "color": "red", "x": 200, "y": 100, "ttl": 8}
 
-This contains UTF-8 chars and will fail with json parser on non-utf locale too:
-118#{"id": "test1", "text": "You are low on 水 fuel 水 !", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
+    This contains UTF-8 chars and will fail with json parser on non-utf locale too:
+    118#{"id": "test1", "text": "You are low on 水 fuel 水 !", "font_size": 50, "color": "red", "x": 200, "y": 100, "ttl": 8}
 */
 
 int main(int argc, char* argv[])
@@ -94,14 +94,16 @@ int main(int argc, char* argv[])
         utility::trim(programName);
     }
 
-    auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+    auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]),
+                                       atoi(argv[4]));
 
     //std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
 
     drawer.cleanFrame();
-    drawer.showVersionString("Binary is awaiting connection(s) from EDMC's plugins...", "green");
+    drawer.showVersionString("Binary is awaiting connection(s) from EDMC's plugins...",
+                             "green");
     drawer.flushFrame();
     //std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
@@ -112,7 +114,7 @@ int main(int argc, char* argv[])
     serverThread = utility::startNewRunner([&mut,
                                             &allDraws](auto should_close_ptr)
     {
-        std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p)
+        std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t* p)
         {
             if (p)
             {
@@ -184,7 +186,7 @@ int main(int argc, char* argv[])
                     }
 
                 }
-                catch(...)
+                catch (...)
                 {
                 }
             }).detach();
@@ -195,7 +197,7 @@ int main(int argc, char* argv[])
     try
     {
         constexpr auto kAppActivityCheck = 1500ms;
-        auto lastCheckTime   = std::chrono::steady_clock::now() - kAppActivityCheck;
+        auto lastCheckTime = std::chrono::steady_clock::now() - kAppActivityCheck;
         bool targetAppActive = false;
         bool commandHideLayer = false;
 
@@ -232,14 +234,14 @@ int main(int argc, char* argv[])
             std::this_thread::sleep_for(100ms);
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
             {
-                lastCheckTime  = std::chrono::steady_clock::now();
+                lastCheckTime = std::chrono::steady_clock::now();
                 targetAppActive = programName.empty()
                                   || utility::strcontains(drawer.getFocusedWindowBinaryPath(), programName);
             }
             {
                 std::lock_guard grd(*mut);
                 bool skip_render = true;
-                for(auto iter = allDraws.begin(); iter != allDraws.end(); )
+                for (auto iter = allDraws.begin(); iter != allDraws.end();)
                 {
                     const bool isCommand = iter->second.isCommand();
                     if (isCommand)
@@ -295,7 +297,7 @@ int main(int argc, char* argv[])
             }
         }
     }
-    catch(...)
+    catch (...)
     {
         std::cerr << "Exception into drawing loop. Program is going to exit..." << std::endl;
     }
@@ -306,4 +308,3 @@ int main(int argc, char* argv[])
     std::lock_guard grd(*mut);
     return 0;
 }
-

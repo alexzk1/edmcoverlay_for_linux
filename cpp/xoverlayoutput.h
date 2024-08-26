@@ -8,17 +8,21 @@ class XPrivateAccess;
 class XOverlayOutput : public OutputLayer
 {
 public:
-    XOverlayOutput(int window_xpos, int window_ypos, int window_width, int window_height);
-    static OutputLayer& get(int window_xpos, int window_ypos, int window_width, int window_height)
+    XOverlayOutput(int window_xpos, int window_ypos, int window_width,
+                   int window_height);
+    static OutputLayer& get(int window_xpos, int window_ypos, int window_width,
+                            int window_height)
     {
-        return getStaticObject<XOverlayOutput>(window_xpos, window_ypos, window_width, window_height);
+        return getStaticObject<XOverlayOutput>(window_xpos, window_ypos, window_width,
+                                               window_height);
     }
     ~XOverlayOutput() override;
 
     void cleanFrame() override;
     void flushFrame() override;
 
-    void showVersionString(const std::string& version, const std::string& color) override;
+    void showVersionString(const std::string& version,
+                           const std::string& color) override;
     void draw(const draw_task::drawitem_t& drawitem) override;
     std::string getFocusedWindowBinaryPath() const override;
 private:
