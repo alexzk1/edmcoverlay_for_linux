@@ -16,7 +16,7 @@
 //from https://habrahabr.ru/post/131977/
 
 #ifndef _WIN32
-    #include <limits.h>
+    #include <limits>
     #include <stdlib.h>
 #else
     #include <windows.h>

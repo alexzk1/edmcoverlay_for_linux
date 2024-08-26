@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,7 @@
 //JSON text
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int write_request(socket_t &socket, const char* buf_json)
+int write_request(socket_t& socket, const char* buf_json)
 {
     std::string buf;
     size_t size_json = strlen(buf_json);
@@ -41,9 +41,8 @@ int write_request(socket_t &socket, const char* buf_json)
 //read_request
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::string read_response(socket_t &socket)
+std::string read_response(socket_t& socket)
 {
-    int recv_size; // size in bytes received or -1 on error
     int size_json = 0; //in bytes
     std::string str_header;
     std::string str;
@@ -53,15 +52,19 @@ std::string read_response(socket_t &socket)
     for (size_t idx = 0; idx < 20; idx++)
     {
         char c;
-        if ((recv_size = ::recv(socket.m_sockfd, &c, 1, 0)) == -1)
+        if (::recv(socket.m_sockfd, &c, 1, 0) == -1)
         {
             std::cout << "recv error: " << strerror(errno) << std::endl;
             return str;
         }
         if (c == '#')
+        {
             break;
+        }
         else
+        {
             str_header += c;
+        }
     }
 
     //get size
@@ -77,6 +80,3 @@ std::string read_response(socket_t &socket)
     }
     return std::string(buf.data(), size_json);
 }
-
-
-

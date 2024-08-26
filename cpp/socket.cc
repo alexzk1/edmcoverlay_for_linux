@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,11 +25,11 @@ constexpr std::chrono::milliseconds kAcceptPollTimeout(500);
 
 void wait(int nbr_secs)
 {
-#ifdef _MSC_VER
+    #ifdef _MSC_VER
     Sleep(1000 * nbr_secs);
-#else
+    #else
     sleep(nbr_secs);
-#endif
+    #endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,9 +64,9 @@ std::string str_extract(const std::string& str_in)
 
 int set_daemon(const char* str_dir)
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     std::cout << str_dir << std::endl;
-#else
+    #else
     pid_t pid, sid;
     pid = fork();
     if (pid < 0)
@@ -98,7 +98,7 @@ int set_daemon(const char* str_dir)
         }
         std::cout << "chdir to: " << str_dir << std::endl;
     }
-#endif
+    #endif
     return 0;
 }
 
@@ -127,11 +127,11 @@ socket_t::socket_t(socketfd_t sockfd, sockaddr_in sock_addr) :
 
 void socket_t::close()
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     ::closesocket(m_sockfd);
-#else
+    #else
     ::close(m_sockfd);
-#endif
+    #endif
     //clear members
     memset(&m_sockaddr_in, 0, sizeof(m_sockaddr_in));
     m_sockfd = 0;
@@ -147,7 +147,8 @@ void socket_t::close()
 
 int socket_t::write_all(const void* _buf, int size_buf)
 {
-    const char* buf = static_cast<const char*>(_buf); // can't do pointer arithmetic on void*
+    const char* buf = static_cast<const char*>
+                      (_buf); // can't do pointer arithmetic on void*
     int sent_size; // size in bytes sent or -1 on error
     int size_left; // size in bytes left to send
     const int flags = 0;
@@ -209,18 +210,17 @@ int socket_t::read_all(void* _buf, int size_buf)
 //to an address
 ///////////////////////////////////////////////////////////////////////////////////////
 
-int socket_t::hostname_to_ip(const char* host_name, char* ip)
+int socket_t::hostname_to_ip(const char* host_name, std::array<char, 100> &ip)
 {
     struct addrinfo hints, * servinfo, * p;
     struct sockaddr_in* h;
-    int rv;
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    if ((rv = getaddrinfo(host_name, "http", &hints, &servinfo)) != 0)
+    if (getaddrinfo(host_name, "http", &hints, &servinfo) != 0)
     {
         return 1;
     }
@@ -228,7 +228,7 @@ int socket_t::hostname_to_ip(const char* host_name, char* ip)
     for (p = servinfo; p != NULL; p = p->ai_next)
     {
         h = (struct sockaddr_in*) p->ai_addr;
-        strcpy(ip, inet_ntoa(h->sin_addr));
+        strncpy(ip.data(), inet_ntoa(h->sin_addr), ip.size());
     }
 
     freeaddrinfo(servinfo);
@@ -242,13 +242,13 @@ int socket_t::hostname_to_ip(const char* host_name, char* ip)
 tcp_server_t::tcp_server_t(const unsigned short server_port)
     : socket_t()
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
     {
         exit(1);
     }
-#endif
+    #endif
     sockaddr_in server_addr; // local address
 
     // create TCP socket for incoming connections
@@ -267,10 +267,10 @@ tcp_server_t::tcp_server_t(const unsigned short server_port)
     }
 
     // construct local address structure
-    memset(&server_addr, 0, sizeof(server_addr));     // zero out structure
-    server_addr.sin_family = AF_INET;                 // internet address family
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);  // any incoming interface
-    server_addr.sin_port = htons(server_port);        // local port
+    memset(&server_addr, 0, sizeof(server_addr)); // zero out structure
+    server_addr.sin_family = AF_INET; // internet address family
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY); // any incoming interface
+    server_addr.sin_port = htons(server_port); // local port
 
     // bind to the local address
     if (::bind(m_sockfd, (sockaddr*)&server_addr, sizeof(server_addr)) < 0)
@@ -296,9 +296,9 @@ tcp_server_t::tcp_server_t(const unsigned short server_port)
 
 tcp_server_t::~tcp_server_t()
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     WSACleanup();
-#endif
+    #endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -310,11 +310,11 @@ socket_t tcp_server_t::accept()
 {
     sockaddr_in addr_client; // client address
     socketfd_t fd; //socket descriptor
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     int len_addr; // length of client address data structure
-#else
+    #else
     socklen_t len_addr;
-#endif
+    #endif
 
     // set length of client address structure (in-out parameter)
     len_addr = sizeof(addr_client);
@@ -329,15 +329,16 @@ socket_t tcp_server_t::accept()
     return socket;
 }
 
-std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t is_interrupted_ptr)
+std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t
+                                                         is_interrupted_ptr)
 {
     sockaddr_in addr_client; // client address
     socketfd_t fd; //socket descriptor
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     int len_addr; // length of client address data structure
-#else
+    #else
     socklen_t len_addr;
-#endif
+    #endif
 
     // set length of client address structure (in-out parameter)
     len_addr = sizeof(addr_client);
@@ -349,7 +350,7 @@ std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t is
     fds[0].fd = m_sockfd;
     fds[0].events = POLLIN;
 
-    while(!(*is_interrupted_ptr))
+    while (!(*is_interrupted_ptr))
     {
         if (poll(fds, 1, kAcceptPollTimeout.count()) < 1 || fds[0].revents != POLLIN)
         {
@@ -363,7 +364,7 @@ std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t is
             std::cerr << "accept error " << std::endl;
         }
 
-        return std::shared_ptr<socket_t>(new socket_t(fd, addr_client), [](socket_t *p)
+        return std::shared_ptr<socket_t>(new socket_t(fd, addr_client), [](socket_t* p)
         {
             if (p)
             {
@@ -383,34 +384,34 @@ std::shared_ptr<socket_t> tcp_server_t::accept_autoclose(utility::runnerint_t is
 tcp_client_t::tcp_client_t()
     : socket_t()
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
     {
         exit(1);
     }
-#endif
+    #endif
 }
 
 tcp_client_t::tcp_client_t(const char* host_name, const unsigned short server_port)
     : socket_t(),
       m_server_port(server_port)
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     WSADATA ws_data;
     if (WSAStartup(MAKEWORD(2, 0), &ws_data) != 0)
     {
         exit(1);
     }
-#endif
+    #endif
 
-    char server_ip[100];
+    std::array<char, 100> server_ip;
 
     //get ip address from hostname
     hostname_to_ip(host_name, server_ip);
 
     //store
-    m_server_ip = server_ip;
+    m_server_ip = server_ip.data();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -421,13 +422,13 @@ tcp_client_t::tcp_client_t(const char* host_name, const unsigned short server_po
 int tcp_client_t::connect(const char* host_name, const unsigned short server_port)
 {
     struct sockaddr_in server_addr; // server address
-    char server_ip[100];
+    std::array<char, 100> server_ip;
 
     //get ip address from hostname
     hostname_to_ip(host_name, server_ip);
 
     //store
-    m_server_ip = server_ip;
+    m_server_ip = server_ip.data();
     m_server_port = server_port;
 
     // create a stream socket using TCP
@@ -440,7 +441,8 @@ int tcp_client_t::connect(const char* host_name, const unsigned short server_por
     // construct the server address structure
     memset(&server_addr, 0, sizeof(server_addr)); // zero out structure
     server_addr.sin_family = AF_INET; // internet address family
-    if (inet_pton(AF_INET, m_server_ip.c_str(), &server_addr.sin_addr) <= 0) // server IP address
+    if (inet_pton(AF_INET, m_server_ip.c_str(),
+                  &server_addr.sin_addr) <= 0) // server IP address
     {
         std::cout << "inet_pton error: " << strerror(errno) << std::endl;
         return -1;
@@ -475,7 +477,8 @@ int tcp_client_t::connect()
     // construct the server address structure
     memset(&server_addr, 0, sizeof(server_addr)); // zero out structure
     server_addr.sin_family = AF_INET; // internet address family
-    if (inet_pton(AF_INET, m_server_ip.c_str(), &server_addr.sin_addr) <= 0) // server IP address
+    if (inet_pton(AF_INET, m_server_ip.c_str(),
+                  &server_addr.sin_addr) <= 0) // server IP address
     {
         std::cout << "inet_pton error: " << strerror(errno) << std::endl;
         return -1;
@@ -497,10 +500,7 @@ int tcp_client_t::connect()
 
 tcp_client_t::~tcp_client_t()
 {
-#if defined (_MSC_VER)
+    #if defined (_MSC_VER)
     WSACleanup();
-#endif
+    #endif
 }
-
-
-

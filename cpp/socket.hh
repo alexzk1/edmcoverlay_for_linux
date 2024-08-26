@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,6 +43,7 @@
 #include <time.h>
 #include <ctime>
 #include <memory>
+#include <array>
 
 #include "runners.h"
 
@@ -74,11 +75,12 @@ public:
     void close();
     int write_all(const void* buf, int size_buf);
     int read_all(void* buf, int size_buf);
-    int hostname_to_ip(const char* host_name, char* ip);
+    int hostname_to_ip(const char* host_name, std::array<char, 100>& ip);
 
 public:
     socketfd_t m_sockfd; //socket descriptor
-    sockaddr_in m_sockaddr_in; //client address (used to store return value of server accept())
+    sockaddr_in
+    m_sockaddr_in; //client address (used to store return value of server accept())
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
