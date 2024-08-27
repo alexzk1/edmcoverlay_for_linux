@@ -113,7 +113,8 @@ int main(int argc, char* argv[])
     serverThread = utility::startNewRunner([&mut,
                                             &allDraws](auto should_close_ptr)
     {
-        std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t* p)
+        const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](
+                                                       tcp_server_t* p)
         {
             if (p)
             {

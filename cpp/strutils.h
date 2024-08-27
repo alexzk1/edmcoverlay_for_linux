@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cctype>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -17,6 +19,7 @@
 
 #ifndef _WIN32
     #include <limits>
+    //NOLINTNEXTLINE
     #include <stdlib.h>
 #else
     #include <windows.h>
@@ -59,52 +62,28 @@ std::string string_sprintf(const char* format, Args... args)
     return str;
 }
 
-//gets filename without path and WITH extension
-inline std::string baseFileName(const std::string& pathname)
-{
-    return {std::find_if(pathname.rbegin(), pathname.rend(),
-                         [](char c)
-    {
-        return c == '/' || c == '\\';
-    }).base(),
-    pathname.end()};
-}
-
-inline std::string getAbsolutePath(const std::string& fileName)
-{
-    std::string result;
-    #ifndef _WIN32
-    char* full_path = realpath(fileName.c_str(), nullptr);
-    if (full_path)
-    {
-        result = std::string(full_path);
-        free(full_path);
-    }
-    #else
-    TCHAR full_path[MAX_PATH];
-    GetFullPathName(_T(fileName.c_str()), MAX_PATH, full_path, NULL);
-    result = std::string(full_path);
-#error Revise this code for windows
-    #endif
-    return result;
-}
-
 //from this article: http://cpp.indi.frih.net/blog/2014/09/how-to-read-an-entire-file-into-memory-in-cpp/
 template <typename CharT = char,
           typename Traits = std::char_traits<char>>
 std::streamsize streamSizeToEnd(std::basic_istream<CharT, Traits>& in)
 {
     auto const start_pos = in.tellg();
-    if (std::streamsize(-1) == start_pos)
+    if (static_cast<std::streamsize>(-1) == start_pos)
+    {
         throw std::ios_base::failure{"error"};
+    }
 
     if (!in.ignore(std::numeric_limits<std::streamsize>::max()))
+    {
         throw std::ios_base::failure{"error"};
+    }
 
     const std::streamsize char_count = in.gcount();
 
     if (!in.seekg(start_pos))
+    {
         throw std::ios_base::failure{"error"};
+    }
 
     return char_count;
 }
@@ -118,19 +97,19 @@ Container read_stream_into_container(
 {
     static_assert(
         // Allow only strings...
-        std::is_same<Container, std::basic_string<CharT,
+        std::is_same_v<Container, std::basic_string<CharT,
         Traits,
-        typename Container::allocator_type>>::value ||
+        typename Container::allocator_type>> ||
         // ... and vectors of the plain, signed, and
         // unsigned flavours of CharT.
-        std::is_same<Container, std::vector<CharT,
-        typename Container::allocator_type>>::value ||
-        std::is_same<Container, std::vector<
-        typename std::make_unsigned<CharT>::type,
-        typename Container::allocator_type>>::value ||
-        std::is_same<Container, std::vector<
-        typename std::make_signed<CharT>::type,
-        typename Container::allocator_type>>::value,
+        std::is_same_v<Container, std::vector<CharT,
+        typename Container::allocator_type>> ||
+        std::is_same_v<Container, std::vector<
+        std::make_unsigned_t<CharT>,
+        typename Container::allocator_type>> ||
+        std::is_same_v<Container, std::vector<
+        std::make_signed_t<CharT>,
+        typename Container::allocator_type>>,
         "only strings and vectors of ((un)signed) CharT allowed");
 
     auto const char_count = streamSizeToEnd(in);
@@ -140,8 +119,11 @@ Container read_stream_into_container(
 
     if (0 != container.size())
     {
+        //NOLINTNEXTLINE
         if (!in.read(reinterpret_cast<CharT*>(&container[0]), container.size()))
+        {
             throw std::ios_base::failure{"File size differs"};
+        }
     }
     return container;
 }
@@ -167,12 +149,6 @@ inline bool endsWith(std::string const& fullString, std::string const& ending)
                                         ending.length(), ending));
     }
     return false;
-}
-
-inline std::string removeExtension(const std::string& fileName)
-{
-    size_t lastindex = fileName.find_last_of(".");
-    return fileName.substr(0, lastindex);
 }
 
 #ifdef QT_CORE_LIB
@@ -201,7 +177,7 @@ bool strcontains(const T& src, const std::vector<T>& what)
     return false;
 }
 
-inline std::vector<std::string> split(std::string str, char delimiter)
+inline std::vector<std::string> split(const std::string& str, char delimiter)
 {
     std::vector<std::string> internal;
     std::stringstream ss(str); // Turn the string into a stream.
@@ -235,4 +211,4 @@ inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v")
     return ltrim(rtrim(s, t), t);
 }
 
-}
+} // namespace utility

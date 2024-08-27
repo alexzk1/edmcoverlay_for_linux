@@ -1,21 +1,31 @@
 #include "xoverlayoutput.h"
+#include "cm_ctors.h"
 #include "colors_mgr.h"
+#include "drawables.h"
+#include "opaque_ptr.h"
+
+#include <X11/X.h>
 #include <X11/Xos.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/Xft/Xft.h>
+#include <X11/extensions/shapeconst.h>
+#include <fontconfig/fontconfig.h>
 
 #include <cassert>
+#include <cstdint>
 #include <memory.h>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <sstream>
 #include <stdexcept>
-#include <mutex>
+#include <type_traits>
 #include <vector>
 #include <unordered_map>
 
@@ -27,11 +37,6 @@ constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask |
 constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask |
                                            ButtonPressMask |
                                            ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
-
-constexpr static long event_mask = StructureNotifyMask | ExposureMask |
-                                   PropertyChangeMask |
-                                   EnterWindowMask |
-                                   LeaveWindowMask | KeyRelease | ButtonPress | ButtonRelease | KeymapStateMask;
 
 class XPrivateAccess
 {
@@ -53,6 +58,9 @@ public:
     }
 
     XPrivateAccess() = delete;
+    NO_COPYMOVE(XPrivateAccess);
+
+    //NOLINTNEXTLINE
     XPrivateAccess(int window_xpos, int window_ypos, int window_width,
                    int window_height):
         window_xpos(window_xpos), window_ypos(window_ypos),
@@ -66,7 +74,7 @@ public:
 
         single_gc = allocGlobGC();
 
-        colors.reset(new MyXOverlayColorMap(g_display, g_screen, getAttributes()));
+        colors = std::make_shared<MyXOverlayColorMap>(g_display, getAttributes());
     }
 
     ~XPrivateAccess()
@@ -75,6 +83,7 @@ public:
         colors.reset();
         single_gc.reset();
         g_display.reset();
+        XFreeThreads();
     }
 
     void cleanGC(GC gc) const
@@ -180,7 +189,7 @@ private:
 
     void openDisplay()
     {
-        g_display = std::shared_ptr<Display>(XOpenDisplay(0), [](Display* p)
+        g_display = std::shared_ptr<Display>(XOpenDisplay(nullptr), [](Display* p)
         {
             if (p)
             {
@@ -190,30 +199,27 @@ private:
 
         if (!g_display)
         {
-            std::cerr << "Failed to open X display" << std::endl;
-            exit(-1);
+            throw std::runtime_error("Failed to open X display");
         }
 
-        Atom cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 0);
-        Window cmOwner = XGetSelectionOwner(g_display, cmAtom);
+        const Atom cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 0);
+        const Window cmOwner = XGetSelectionOwner(g_display, cmAtom);
         if (!cmOwner)
         {
             std::cerr << "Composite manager is absent." << std::endl;
-            std::cerr <<
-                      "Please check instructions: https://wiki.archlinux.org/index.php/Xcompmgr" <<
-                      std::endl;
-            exit(-1);
+            std::cerr <<"Please check instructions: "
+                      "https://wiki.archlinux.org/index.php/Xcompmgr"<<std::endl;
+            throw std::runtime_error("Transparance is impossible.");
         }
         g_screen = DefaultScreen(g_display);
 
         // Has shape extions?
-        int shape_event_base;
-        int shape_error_base;
+        int shape_event_base = 0;
+        int shape_error_base = 0;
 
         if (!XShapeQueryExtension(g_display, &shape_event_base, &shape_error_base))
         {
-            std::cerr << "NO shape extension in your system !" << std::endl;
-            exit(-1);
+            throw std::runtime_error("NO shape extension in your system !");
         }
 
         g_root = DefaultRootWindow(g_display);
@@ -237,9 +243,9 @@ private:
         attr.colormap = XCreateColormap(g_display, g_root, vinfo.visual, AllocNone);
 
         //unsigned long mask = CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
-        unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask |
-                             CWWinGravity |
-                             CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
+        const unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask |
+                                   CWWinGravity |
+                                   CWBitGravity | CWSaveUnder | CWDontPropagate | CWOverrideRedirect;
 
         g_win = XCreateWindow(g_display, g_root, window_xpos, window_ypos, window_width,
                               window_height, 0,
@@ -259,7 +265,7 @@ private:
         XChangeWindowAttributes(g_display, g_win, CWOverrideRedirect, &wattr);
 
         //pass through input
-        XserverRegion region = XFixesCreateRegion(g_display, NULL, 0);
+        const XserverRegion region = XFixesCreateRegion(g_display, nullptr, 0);
         //XFixesSetWindowShapeRegion (g_display, w, ShapeBounding, 0, 0, 0);
         XFixesSetWindowShapeRegion(g_display, g_win, ShapeInput, 0, 0, region);
         XFixesDestroyRegion(g_display, region);
@@ -275,16 +281,16 @@ private:
         return attrs;
     }
 
-    const unsigned char* const getWindowPropertyAny(const char* const aPropertyName,
-                                                    const Window aWindow) const
+    const unsigned char* getWindowPropertyAny(const char* const aPropertyName,
+                                              const Window aWindow) const
     {
         constexpr int kMaximumReturnedCountOf32Bits = 1024;
         if (aWindow == 0)
         {
             return nullptr;
         }
-        Atom actual_type;
-        int actual_format;
+        Atom actual_type = 0;
+        int actual_format = 0;
         unsigned long nitems, bytes_after;
         unsigned char* prop = nullptr;
 
@@ -302,8 +308,8 @@ private:
         return prop;
     }
 
-    template <typename ExpectedType, typename =
-              typename std::enable_if<std::is_integral<ExpectedType>::value>::type>
+    template <typename ExpectedType,
+              typename = std::enable_if_t<std::is_integral<ExpectedType>::value>> //NOLINT
     ExpectedType getWindowPropertyInt(const char* const aPropertyName,
                                       const Window aWindow) const
     {
@@ -325,7 +331,8 @@ private:
                                         const Window aWindow) const
     {
         const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
-        return std::string(reinterpret_cast<const char* const>(ptr));
+        //NOLINTNEXTLINE
+        return {reinterpret_cast<const char* const>(ptr)};
     }
 public:
     const int window_xpos;
@@ -359,8 +366,9 @@ public:
     {
         //https://github.com/jsynacek/xft-example/blob/master/main.c
 
-        const int length = aString.length();
-        const FcChar8* str = reinterpret_cast<const FcChar8*>(aString.c_str());
+        const auto length = static_cast<int>(aString.length());
+        //NOLINTNEXTLINE
+        const auto* str = reinterpret_cast<const FcChar8*>(aString.c_str());
 
         if (!aFont)
         {

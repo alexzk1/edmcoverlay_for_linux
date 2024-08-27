@@ -20,7 +20,6 @@ private:
     inline static constexpr std::uint8_t kAlpha = 240;
 
     const opaque_ptr<Display>& g_display;
-    const int g_screen;
     const XWindowAttributes g_attrs;
 
     std::map<std::string, XColor> known_xcolors;
@@ -40,6 +39,7 @@ private:
             return (static_cast<uint32_t>(color) * 0xFFFFu) / 0xFFu;
         }
 
+        [[nodiscard]]
         XRenderColor toRenderColor() const
         {
             return {upScale(red), upScale(green), upScale(blue), upScale(alpha)};
@@ -55,10 +55,9 @@ public:
     MyXOverlayColorMap() = delete;
 
     //we take reference here to object, so this map must be destroyed prior object destroyed
-    MyXOverlayColorMap(const opaque_ptr<Display>& g_display, int g_screen,
+    MyXOverlayColorMap(const opaque_ptr<Display>& g_display,
                        XWindowAttributes g_attrs):
         g_display(g_display),
-        g_screen(g_screen),
         g_attrs(g_attrs)
     {
     }

@@ -1,11 +1,15 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <chrono>
+#include <cstdint>
+#include <exception>
+#include <functional>
 #include <iostream>
-#include <sstream>
-#include <string>
+#include <limits>
 #include <optional>
+#include <string>
 #include <map>
 #include <tuple>
 
@@ -19,6 +23,7 @@ struct timestamp_t
     std::chrono::steady_clock::time_point created_at{std::chrono::steady_clock::now()};
     std::chrono::seconds ttl{-1};
 
+    [[nodiscard]]
     bool isValid() const
     {
         //original: https://github.com/inorton/EDMCOverlay/issues/42
@@ -26,6 +31,7 @@ struct timestamp_t
                || std::chrono::steady_clock::now() <= created_at + ttl;
     }
 
+    [[nodiscard]]
     bool isExpired() const
     {
         return !isValid();
@@ -38,7 +44,7 @@ struct timestamp_t
     }
 };
 
-enum class drawmode_t
+enum class drawmode_t :std::uint8_t
 {
     idk,
     text,
@@ -97,6 +103,7 @@ struct drawitem_t
     //Anti-flickering field,
     bool already_rendered{false};
 
+    [[nodiscard]]
     bool IsEqualStoredData(const drawitem_t& other) const
     {
         static const auto tie = [](const drawitem_t& item)
@@ -107,11 +114,13 @@ struct drawitem_t
         return tie(*this) == tie(other);
     }
 
+    [[nodiscard]]
     bool isExpired() const
     {
         return ttl.isExpired();
     }
 
+    [[nodiscard]]
     bool isCommand() const
     {
         return !command.empty();
@@ -245,7 +254,7 @@ inline bool ForEachVectorPointsPair(const drawitem_t& src, const Callback& func)
         {
             // node_ is a point
             const auto& val = node_.value();
-            int x, y;
+            int x = 0, y = 0;
             try
             {
                 x = val["x"].get<int>();
@@ -285,4 +294,4 @@ inline bool ForEachVectorPointsPair(const drawitem_t& src, const Callback& func)
     }
     return false;
 }
-}
+} // namespace draw_task

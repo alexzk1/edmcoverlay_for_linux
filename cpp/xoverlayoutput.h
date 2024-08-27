@@ -1,6 +1,10 @@
 #pragma once
+
+#include "cm_ctors.h"
 #include "layer_out.h"
+
 #include <memory>
+#include <string>
 
 //Have to use such a trick, so this H file does not have too many includes
 class XPrivateAccess;
@@ -16,6 +20,7 @@ public:
         return getStaticObject<XOverlayOutput>(window_xpos, window_ypos, window_width,
                                                window_height);
     }
+    NO_COPYMOVE(XOverlayOutput);
     ~XOverlayOutput() override;
 
     void cleanFrame() override;
@@ -24,6 +29,7 @@ public:
     void showVersionString(const std::string& version,
                            const std::string& color) override;
     void draw(const draw_task::drawitem_t& drawitem) override;
+    [[nodiscard]]
     std::string getFocusedWindowBinaryPath() const override;
 private:
     std::shared_ptr<XPrivateAccess> xserv{nullptr};

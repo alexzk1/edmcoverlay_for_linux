@@ -1,6 +1,8 @@
 #pragma once
+
 #include <memory>
 #include <type_traits>
+
 #include "cm_ctors.h"
 
 //Warning! This is unsafe pattern, do not repeat it!
@@ -20,6 +22,7 @@ public:
     opaque_ptr() = default;
     ~opaque_ptr() = default;
 
+    //NOLINTNEXTLINE
     opaque_ptr(const shared_t& s): ptr(s)
     {
     }
@@ -30,6 +33,7 @@ public:
         return *this;
     }
 
+    //NOLINTNEXTLINE
     operator value_t* () const
     {
         return ptr.get();
@@ -50,6 +54,7 @@ public:
         return ptr.get();
     }
 
+    //NOLINTNEXTLINE
     operator bool() const
     {
         return static_cast<bool>(ptr);
@@ -65,6 +70,7 @@ public:
     explicit operator Type() const
     {
         static_assert(std::is_pointer<Type>::value, "Expecting cast to pointer.");
+        //NOLINTNEXTLINE
         return reinterpret_cast<Type>(ptr.get());
     }
 };
