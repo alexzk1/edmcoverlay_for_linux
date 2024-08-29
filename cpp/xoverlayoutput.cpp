@@ -40,6 +40,10 @@ constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask |
 
 class XPrivateAccess
 {
+private:
+    //Make sure it is 1st field, so it is cleared last in dtor.
+    struct TXInitFreeCaller;
+    std::unique_ptr<TXInitFreeCaller> initializer;
 public:
 
     template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
@@ -63,17 +67,16 @@ public:
     //NOLINTNEXTLINE
     XPrivateAccess(int window_xpos, int window_ypos, int window_width,
                    int window_height):
+        initializer(std::make_unique<TXInitFreeCaller>()),
         window_xpos(window_xpos), window_ypos(window_ypos),
         window_width(window_width), window_height(window_height)
     {
-        XInitThreads();
         XftInit(nullptr);
 
         openDisplay();
         createShapedWindow();
 
         single_gc = allocGlobGC();
-
         colors = std::make_shared<MyXOverlayColorMap>(g_display, getAttributes());
     }
 
@@ -83,7 +86,7 @@ public:
         colors.reset();
         single_gc.reset();
         g_display.reset();
-        XFreeThreads();
+        initializer.reset();
     }
 
     void cleanGC(GC gc) const
@@ -131,6 +134,18 @@ public:
                : getFont(kNormalFontSize);
     }
 private:
+    struct TXInitFreeCaller
+    {
+        NO_COPYMOVE(TXInitFreeCaller);
+        TXInitFreeCaller()
+        {
+            XInitThreads();
+        }
+        ~TXInitFreeCaller()
+        {
+            XFreeThreads();
+        }
+    };
     std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
 
     opaque_ptr<_XGC> allocGlobGC() const
