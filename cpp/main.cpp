@@ -1,7 +1,10 @@
 //this file was heavy simplified by alexzkhr@gmail.com in 2021
 
+#include <algorithm>
 #include <chrono>
+#include <exception>
 #include <iostream>
+#include <iterator>
 #include <stdlib.h>
 #include <csignal>
 #include <mutex>
@@ -18,11 +21,13 @@
 #include "runners.h"
 #include "strutils.h"
 
+namespace {
+
+const std::string windowClassName = "edmc_linux_overlay_class";
 constexpr unsigned short port = 5010;
 
-static std::shared_ptr<std::thread> serverThread{nullptr};
-
-static void sighandler(int signum)
+std::shared_ptr<std::thread> serverThread{nullptr};
+void sighandler(int signum)
 {
     std::cout << "edmc_linux_overlay: got signal " << signum << std::endl;
 
@@ -34,7 +39,7 @@ static void sighandler(int signum)
     }
 }
 
-static void RemoveRenamedDuplicates(draw_task::draw_items_t& src)
+void RemoveRenamedDuplicates(draw_task::draw_items_t& src)
 {
     for (auto iter = src.begin(); iter != std::prev(src.end());)
     {
@@ -64,6 +69,7 @@ static void RemoveRenamedDuplicates(draw_task::draw_items_t& src)
         }
     }
 }
+} // namespace
 
 /*
     FYI: test string to send over "telnet 127.0.0.1 5010"
@@ -93,8 +99,8 @@ int main(int argc, char* argv[])
         utility::trim(programName);
     }
 
-    auto& drawer = XOverlayOutput::get(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]),
-                                       atoi(argv[4]));
+    auto& drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]),
+                                       atoi(argv[3]), atoi(argv[4]));
 
     //std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
@@ -159,7 +165,7 @@ int main(int argc, char* argv[])
 
                     if (!incoming_draws.empty())
                     {
-                        std::lock_guard grd(*mut);
+                        const std::lock_guard grd(*mut);
                         if ((!(*should_close_ptr)))
                         {
                             incoming_draws.merge(allDraws);
@@ -239,7 +245,7 @@ int main(int argc, char* argv[])
                                   || utility::strcontains(drawer.getFocusedWindowBinaryPath(), programName);
             }
             {
-                std::lock_guard grd(*mut);
+                const std::lock_guard grd(*mut);
                 bool skip_render = true;
                 for (auto iter = allDraws.begin(); iter != allDraws.end();)
                 {
@@ -305,6 +311,6 @@ int main(int argc, char* argv[])
     serverThread.reset();
 
     //Wait while all detached threads will stop writting parsed messages.
-    std::lock_guard grd(*mut);
+    const std::lock_guard grd(*mut);
     return 0;
 }

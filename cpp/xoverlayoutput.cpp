@@ -29,6 +29,7 @@
 #include <vector>
 #include <unordered_map>
 
+namespace {
 // Events for normal windows
 constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask |
                                          PropertyChangeMask |
@@ -38,12 +39,48 @@ constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask |
                                            ButtonPressMask |
                                            ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
 
+//String [buffer] must exist while allocated hint exists.
+class CWindowClass
+{
+public:
+    CWindowClass() = delete;
+    NO_COPYMOVE(CWindowClass);
+
+    CWindowClass(const std::string& window_class):
+        window_class(window_class),
+        classHint(AllocateOpaque<XClassHint>(&XFree, &XAllocClassHint))
+    {
+        classHint->res_class = const_cast<char*>(window_class.c_str());
+        classHint->res_name = const_cast<char*>(window_class.c_str());
+
+    }
+    void Set(Display* display, Window w) const
+    {
+        XSetClassHint(display, w, classHint);
+    }
+
+    ~CWindowClass()
+    {
+        classHint.reset();
+        window_class.clear();
+    };
+private:
+    std::string window_class;
+    opaque_ptr<XClassHint> classHint;
+};
+
+} // namespace
+
 class XPrivateAccess
 {
 private:
+
     //Make sure it is 1st field, so it is cleared last in dtor.
     struct TXInitFreeCaller;
     std::unique_ptr<TXInitFreeCaller> initializer;
+
+    //I think, text should existis while window exists.
+    CWindowClass window_class;
 public:
 
     template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
@@ -65,9 +102,10 @@ public:
     NO_COPYMOVE(XPrivateAccess);
 
     //NOLINTNEXTLINE
-    XPrivateAccess(int window_xpos, int window_ypos, int window_width,
-                   int window_height):
+    XPrivateAccess(const std::string& window_class, int window_xpos, int window_ypos,
+                   int window_width, int window_height):
         initializer(std::make_unique<TXInitFreeCaller>()),
+        window_class(window_class),
         window_xpos(window_xpos), window_ypos(window_ypos),
         window_width(window_width), window_height(window_height)
     {
@@ -86,6 +124,8 @@ public:
         colors.reset();
         single_gc.reset();
         g_display.reset();
+
+        //This must be last because it closes X's threads.
         initializer.reset();
     }
 
@@ -265,6 +305,8 @@ private:
         g_win = XCreateWindow(g_display, g_root, window_xpos, window_ypos, window_width,
                               window_height, 0,
                               vinfo.depth, InputOutput, vinfo.visual, mask, &attr);
+        window_class.Set(g_display, g_win);
+        std::cout << "WMID: " << g_win << std::endl;
 
         /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char *)myshape_bits, myshape_width, myshape_height); */
 
@@ -435,9 +477,10 @@ public:
 //*****************************XOverlayOutput***************************************************************************
 //**********************************************************************************************************************
 
-XOverlayOutput::XOverlayOutput(int window_xpos, int window_ypos, int window_width,
-                               int window_height):
-    xserv(new XPrivateAccess(window_xpos, window_ypos, window_width, window_height))
+XOverlayOutput::XOverlayOutput(const std::string& window_class, int window_xpos,
+                               int window_ypos, int window_width, int window_height):
+    xserv(new XPrivateAccess(window_class, window_xpos, window_ypos, window_width,
+                             window_height))
 {
     xserv->cleanGC();
 }

@@ -20,6 +20,7 @@ except ImportError:
     except ImportError:
         edmcoverlay = None
 ```
+* Added WM_CLASS set to `edmc_linux_overlay_class` for the overlay window.
 
 ## Example Screenshot(s)
 

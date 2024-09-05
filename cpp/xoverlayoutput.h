@@ -12,12 +12,17 @@ class XPrivateAccess;
 class XOverlayOutput : public OutputLayer
 {
 public:
-    XOverlayOutput(int window_xpos, int window_ypos, int window_width,
+    XOverlayOutput(const std::string& window_class, int window_xpos, int window_ypos,
+                   int window_width,
                    int window_height);
-    static OutputLayer& get(int window_xpos, int window_ypos, int window_width,
+    static OutputLayer& get(const std::string& window_class, int window_xpos,
+                            int window_ypos, int window_width,
                             int window_height)
     {
-        return getStaticObject<XOverlayOutput>(window_xpos, window_ypos, window_width,
+        return getStaticObject<XOverlayOutput>(window_class,
+                                               window_xpos,
+                                               window_ypos,
+                                               window_width,
                                                window_height);
     }
     NO_COPYMOVE(XOverlayOutput);
