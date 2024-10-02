@@ -28,6 +28,7 @@ public:
     NO_COPYMOVE(XOverlayOutput);
     ~XOverlayOutput() override;
 
+    bool isTransparencyAvail() const override;
     void cleanFrame() override;
     void flushFrame() override;
 

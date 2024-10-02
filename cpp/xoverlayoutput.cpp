@@ -173,6 +173,23 @@ public:
         return sizeText == "large" ? getFont(kNormalFontSize + kDeltaFontDifference)
                : getFont(kNormalFontSize);
     }
+
+    bool isTransparencyAvail() const
+    {
+        if (!g_display)
+        {
+            return false;
+        }
+
+        const Atom cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 1);
+        if (cmAtom == None)
+        {
+            return false;
+        }
+
+        const Window cmOwner = XGetSelectionOwner(g_display, cmAtom);
+        return cmOwner != None;
+    }
 private:
     struct TXInitFreeCaller
     {
@@ -257,9 +274,7 @@ private:
             throw std::runtime_error("Failed to open X display");
         }
 
-        const Atom cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 0);
-        const Window cmOwner = XGetSelectionOwner(g_display, cmAtom);
-        if (!cmOwner)
+        if (!isTransparencyAvail())
         {
             std::cerr << "Composite manager is absent." << std::endl;
             std::cerr <<"Please check instructions: "
@@ -488,6 +503,11 @@ XOverlayOutput::XOverlayOutput(const std::string& window_class, int window_xpos,
 XOverlayOutput::~XOverlayOutput()
 {
     xserv.reset();
+}
+
+bool XOverlayOutput::isTransparencyAvail() const
+{
+    return xserv->isTransparencyAvail();
 }
 
 void XOverlayOutput::cleanFrame()

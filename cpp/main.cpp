@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <exception>
 #include <iostream>
 #include <iterator>
@@ -237,12 +238,24 @@ int main(int argc, char* argv[])
         bool window_was_hidden = false;
         while (serverThread)
         {
+            static std::size_t transparencyChecksCounter = 0;
             std::this_thread::sleep_for(100ms);
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
             {
+                ++transparencyChecksCounter;
                 lastCheckTime = std::chrono::steady_clock::now();
                 targetAppActive = programName.empty()
                                   || utility::strcontains(drawer.getFocusedWindowBinaryPath(), programName);
+                if (transparencyChecksCounter % 5 == 0 && !drawer.isTransparencyAvail())
+                {
+                    //It can be some service restart....
+                    std::this_thread::sleep_for(500ms);
+                    if (!drawer.isTransparencyAvail())
+                    {
+                        std::cerr << "Lost transparency. Closing overlay." << std::endl;
+                        break;
+                    }
+                }
             }
             {
                 const std::lock_guard grd(*mut);
