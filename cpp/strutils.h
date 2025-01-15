@@ -1,25 +1,26 @@
 #pragma once
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
-#include <string>
-#include <vector>
-#include <sstream>
-#include <algorithm>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 #ifdef QT_CORE_LIB
     #include <QString>
     #include <QStringList>
 #endif
 
-//usage std::string s = string_format() << "Operation with id = " << id << " failed, because data1 (" << data1 << ") is incompatible with data2 (" << data2 << ")"
-//from https://habrahabr.ru/post/131977/
+// usage std::string s = string_format() << "Operation with id = " << id << " failed, because data1
+// (" << data1 << ") is incompatible with data2 (" << data2 << ")" from
+// https://habrahabr.ru/post/131977/
 
 #ifndef _WIN32
     #include <limits>
-    //NOLINTNEXTLINE
+    // NOLINTNEXTLINE
     #include <stdlib.h>
 #else
     #include <windows.h>
@@ -28,9 +29,9 @@
 namespace utility {
 class string_format
 {
-public:
-    template<class T>
-    string_format& operator<< (const T& arg)
+  public:
+    template <class T>
+    string_format &operator<<(const T &arg)
     {
         m_stream << arg;
         return *this;
@@ -40,32 +41,32 @@ public:
         return m_stream.str();
     }
 
-    #ifdef QT_CORE_LIB
+#ifdef QT_CORE_LIB
     operator QString() const
     {
         return QString::fromUtf8(m_stream.str().c_str());
     }
-    #endif
+#endif
 
-protected:
+  protected:
     std::stringstream m_stream;
 };
 
-template< typename... Args >
-std::string string_sprintf(const char* format, Args... args)
+template <typename... Args>
+std::string string_sprintf(const char *format, Args... args)
 {
     int length = std::snprintf(nullptr, 0, format, args...);
-    auto* buf = new char[length + 1];
+    auto *buf = new char[length + 1];
     std::snprintf(buf, length + 1, format, args...);
     std::string str(buf);
     delete[] buf;
     return str;
 }
 
-//from this article: http://cpp.indi.frih.net/blog/2014/09/how-to-read-an-entire-file-into-memory-in-cpp/
-template <typename CharT = char,
-          typename Traits = std::char_traits<char>>
-std::streamsize streamSizeToEnd(std::basic_istream<CharT, Traits>& in)
+// from this article:
+// http://cpp.indi.frih.net/blog/2014/09/how-to-read-an-entire-file-into-memory-in-cpp/
+template <typename CharT = char, typename Traits = std::char_traits<char>>
+std::streamsize streamSizeToEnd(std::basic_istream<CharT, Traits> &in)
 {
     auto const start_pos = in.tellg();
     if (static_cast<std::streamsize>(-1) == start_pos)
@@ -88,29 +89,24 @@ std::streamsize streamSizeToEnd(std::basic_istream<CharT, Traits>& in)
     return char_count;
 }
 
-template <typename Container = std::string,
-          typename CharT = char,
+template <typename Container = std::string, typename CharT = char,
           typename Traits = std::char_traits<char>>
-Container read_stream_into_container(
-    std::basic_istream<CharT, Traits>& in,
-    typename Container::allocator_type alloc = {})
+Container read_stream_into_container(std::basic_istream<CharT, Traits> &in,
+                                     typename Container::allocator_type alloc = {})
 {
     static_assert(
-        // Allow only strings...
-        std::is_same_v<Container, std::basic_string<CharT,
-        Traits,
-        typename Container::allocator_type>> ||
+      // Allow only strings...
+      std::is_same_v<Container,
+                     std::basic_string<CharT, Traits, typename Container::allocator_type>>
+        ||
         // ... and vectors of the plain, signed, and
         // unsigned flavours of CharT.
-        std::is_same_v<Container, std::vector<CharT,
-        typename Container::allocator_type>> ||
-        std::is_same_v<Container, std::vector<
-        std::make_unsigned_t<CharT>,
-        typename Container::allocator_type>> ||
-        std::is_same_v<Container, std::vector<
-        std::make_signed_t<CharT>,
-        typename Container::allocator_type>>,
-        "only strings and vectors of ((un)signed) CharT allowed");
+        std::is_same_v<Container, std::vector<CharT, typename Container::allocator_type>>
+        || std::is_same_v<
+          Container, std::vector<std::make_unsigned_t<CharT>, typename Container::allocator_type>>
+        || std::is_same_v<
+          Container, std::vector<std::make_signed_t<CharT>, typename Container::allocator_type>>,
+      "only strings and vectors of ((un)signed) CharT allowed");
 
     auto const char_count = streamSizeToEnd(in);
 
@@ -119,8 +115,8 @@ Container read_stream_into_container(
 
     if (0 != container.size())
     {
-        //NOLINTNEXTLINE
-        if (!in.read(reinterpret_cast<CharT*>(&container[0]), container.size()))
+        // NOLINTNEXTLINE
+        if (!in.read(reinterpret_cast<CharT *>(&container[0]), container.size()))
         {
             throw std::ios_base::failure{"File size differs"};
         }
@@ -135,39 +131,39 @@ inline std::string toLower(std::string src)
 }
 
 #ifdef QT_CORE_LIB
-inline QString toLower(const QString& src)
+inline QString toLower(const QString &src)
 {
     return src.toLower();
 }
 #endif
 
-inline bool endsWith(std::string const& fullString, std::string const& ending)
+inline bool endsWith(std::string const &fullString, std::string const &ending)
 {
     if (fullString.length() >= ending.length())
     {
-        return (0 == fullString.compare(fullString.length() - ending.length(),
-                                        ending.length(), ending));
+        return (
+          0 == fullString.compare(fullString.length() - ending.length(), ending.length(), ending));
     }
     return false;
 }
 
 #ifdef QT_CORE_LIB
-inline bool strcontains(const QString& src, const QString& what)
+inline bool strcontains(const QString &src, const QString &what)
 {
     return src.contains(what);
 }
 #endif
 
-inline bool strcontains(const std::string& src, const std::string& what)
+inline bool strcontains(const std::string &src, const std::string &what)
 {
     return std::string::npos != src.find(what);
 }
 
-//check if src string contains one of substrings listed in what
+// check if src string contains one of substrings listed in what
 template <class T>
-bool strcontains(const T& src, const std::vector<T>& what)
+bool strcontains(const T &src, const std::vector<T> &what)
 {
-    for (const auto& w : what)
+    for (const auto &w : what)
     {
         if (strcontains(src, w))
         {
@@ -177,7 +173,7 @@ bool strcontains(const T& src, const std::vector<T>& what)
     return false;
 }
 
-inline std::vector<std::string> split(const std::string& str, char delimiter)
+inline std::vector<std::string> split(const std::string &str, char delimiter)
 {
     std::vector<std::string> internal;
     std::stringstream ss(str); // Turn the string into a stream.
@@ -192,21 +188,21 @@ inline std::vector<std::string> split(const std::string& str, char delimiter)
 }
 
 // trim from left
-inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
+inline std::string &ltrim(std::string &s, const char *t = " \t\n\r\f\v")
 {
     s.erase(0, s.find_first_not_of(t));
     return s;
 }
 
 // trim from right
-inline std::string& rtrim(std::string& s, const char* t = " \t\n\r\f\v")
+inline std::string &rtrim(std::string &s, const char *t = " \t\n\r\f\v")
 {
     s.erase(s.find_last_not_of(t) + 1);
     return s;
 }
 
 // trim from left & right
-inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v")
+inline std::string &trim(std::string &s, const char *t = " \t\n\r\f\v")
 {
     return ltrim(rtrim(s, t), t);
 }

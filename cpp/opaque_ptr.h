@@ -1,60 +1,63 @@
 #pragma once
 
+#include "cm_ctors.h"
+
 #include <memory>
 #include <type_traits>
 
-#include "cm_ctors.h"
-
-//Warning! This is unsafe pattern, do not repeat it!
-//This is here just to convinient update existing C-code.
-//Know the limits!
+// Warning! This is unsafe pattern, do not repeat it!
+// This is here just to convinient update existing C-code.
+// Know the limits!
 
 template <typename T>
 class opaque_ptr
 {
-public:
-    using value_t = T; //just handy, maybe
+  public:
+    using value_t = T; // just handy, maybe
     using shared_t = std::shared_ptr<value_t>;
-private:
+
+  private:
     shared_t ptr{nullptr};
-public:
+
+  public:
     DEFAULT_COPYMOVE(opaque_ptr);
     opaque_ptr() = default;
     ~opaque_ptr() = default;
 
-    //NOLINTNEXTLINE
-    opaque_ptr(const shared_t& s): ptr(s)
+    // NOLINTNEXTLINE
+    opaque_ptr(const shared_t &s) :
+        ptr(s)
     {
     }
 
-    opaque_ptr& operator = (const shared_t& s)
+    opaque_ptr &operator=(const shared_t &s)
     {
         ptr = s;
         return *this;
     }
 
-    //NOLINTNEXTLINE
-    operator value_t* () const
+    // NOLINTNEXTLINE
+    operator value_t *() const
     {
         return ptr.get();
     }
 
-    value_t* get() const
+    value_t *get() const
     {
         return ptr.get();
     }
 
-    value_t* operator ->()
+    value_t *operator->()
     {
         return ptr.get();
     }
 
-    value_t* operator ->() const
+    value_t *operator->() const
     {
         return ptr.get();
     }
 
-    //NOLINTNEXTLINE
+    // NOLINTNEXTLINE
     operator bool() const
     {
         return static_cast<bool>(ptr);
@@ -65,21 +68,19 @@ public:
         ptr.reset();
     }
 
-    //This allows to cast to anything, darn unsafe. But macroses use it.
+    // This allows to cast to anything, darn unsafe. But macroses use it.
     template <typename Type>
     explicit operator Type() const
     {
         static_assert(std::is_pointer<Type>::value, "Expecting cast to pointer.");
-        //NOLINTNEXTLINE
+        // NOLINTNEXTLINE
         return reinterpret_cast<Type>(ptr.get());
     }
 };
 
-template <typename T, typename taDeAllocator, typename taAllocator, typename ...taAllocArgs>
-auto AllocateOpaque(taDeAllocator aDeallocate, taAllocator aAllocate,
-                    taAllocArgs&& ...aArgs)
+template <typename T, typename taDeAllocator, typename taAllocator, typename... taAllocArgs>
+auto AllocateOpaque(taDeAllocator aDeallocate, taAllocator aAllocate, taAllocArgs &&...aArgs)
 {
-    return opaque_ptr<T>(std::shared_ptr<T>(aAllocate(std::forward<taAllocArgs>
-                                                      (aArgs)...),
+    return opaque_ptr<T>(std::shared_ptr<T>(aAllocate(std::forward<taAllocArgs>(aArgs)...),
                                             std::forward<taDeAllocator>(aDeallocate)));
 }

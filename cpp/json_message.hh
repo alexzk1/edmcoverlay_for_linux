@@ -17,13 +17,15 @@
 
 #include "socket.hh"
 
+#include <string>
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-//custom TCP message:
-//a header with size in bytes and # terminator
-//JSON text
+// custom TCP message:
+// a header with size in bytes and # terminator
+// JSON text
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int write_request(socket_t &socket, const char* buf_json);
+int write_request(socket_t &socket, const char *buf_json);
 std::string read_response(socket_t &socket);
 
 #endif

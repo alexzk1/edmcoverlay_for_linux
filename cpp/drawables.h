@@ -1,19 +1,19 @@
 #pragma once
 
+#include "json.hpp"
+
 #include <atomic>
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
-#include <map>
 #include <tuple>
-
-#include "json.hpp"
 
 namespace draw_task {
 using json = nlohmann::json;
@@ -26,7 +26,7 @@ struct timestamp_t
     [[nodiscard]]
     bool isValid() const
     {
-        //original: https://github.com/inorton/EDMCOverlay/issues/42
+        // original: https://github.com/inorton/EDMCOverlay/issues/42
         return ttl < std::chrono::seconds::zero()
                || std::chrono::steady_clock::now() <= created_at + ttl;
     }
@@ -37,15 +37,14 @@ struct timestamp_t
         return !isValid();
     }
 
-    timestamp_t& operator=(int aSeconds)
+    timestamp_t &operator=(int aSeconds)
     {
         ttl = std::chrono::seconds(aSeconds);
         return *this;
     }
 };
 
-enum class drawmode_t :std::uint8_t
-{
+enum class drawmode_t : std::uint8_t {
     idk,
     text,
     shape,
@@ -69,10 +68,9 @@ struct drawitem_t
         std::string text;
         std::string size;
         std::optional<int> fontSize{std::nullopt};
-        bool operator==(const drawtext_t& other) const
+        bool operator==(const drawtext_t &other) const
         {
-            static const auto tie = [](const drawtext_t& val)
-            {
+            static const auto tie = [](const drawtext_t &val) {
                 return std::tie(val.text, val.size, val.fontSize);
             };
 
@@ -89,10 +87,9 @@ struct drawitem_t
         int h{0};
         json vect;
 
-        bool operator==(const drawshape_t& other) const
+        bool operator==(const drawshape_t &other) const
         {
-            static const auto tie = [](const drawshape_t& val)
-            {
+            static const auto tie = [](const drawshape_t &val) {
                 return std::tie(val.shape, val.fill, val.w, val.h, val.vect);
             };
 
@@ -100,14 +97,13 @@ struct drawitem_t
         }
     } shape;
 
-    //Anti-flickering field,
+    // Anti-flickering field,
     bool already_rendered{false};
 
     [[nodiscard]]
-    bool IsEqualStoredData(const drawitem_t& other) const
+    bool IsEqualStoredData(const drawitem_t &other) const
     {
-        static const auto tie = [](const drawitem_t& item)
-        {
+        static const auto tie = [](const drawitem_t &item) {
             return std::tie(item.drawmode, item.color, item.text, item.shape, item.x, item.y,
                             item.color);
         };
@@ -143,47 +139,106 @@ using draw_items_t = std::map<std::string, drawitem_t>;
     fontSize: if given, overrides "size" field. This is TTF font's size.
     command: text string command.
 */
-inline draw_items_t parseJsonString(const std::string& src)
+
+inline draw_items_t parseJsonString(const std::string &src)
 {
-    //hate chained IFs, lets do it more readable....
-#define FUNC_PARAMS const json& node, drawitem_t& drawitem
-#define LHDR [](FUNC_PARAMS)->void
-#define NINT node.get<int>()
-#define NSTR node.get<std::string>()
-    const static std::map<std::string, std::function<void(FUNC_PARAMS)>> processors =
-    {
-        {"x", LHDR{drawitem.x = NINT;}},
-        {"y", LHDR{drawitem.y = NINT;}},
-        {"color", LHDR{drawitem.color = NSTR;}},
+    // I hate chained IFs, lets do it more readable....
+    const static std::map<std::string, std::function<void(const json &, drawitem_t &)>> processors =
+      {
+        {"x",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.x = node.get<int>();
+         }},
 
-        {"text", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.text = NSTR;}},
-        {"size", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.size = NSTR;}},
-        {"font_size", LHDR{drawitem.drawmode = drawmode_t::text; drawitem.text.fontSize = NINT;}},
+        {"y",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.y = node.get<int>();
+         }},
 
-        {"shape", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.shape = NSTR;}},
-        {"fill", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.fill = NSTR;}},
-        {"w", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.w = NINT;}},
-        {"h", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.h = NINT;}},
-        {"vector", LHDR{drawitem.drawmode = drawmode_t::shape; drawitem.shape.vect = node;}},
+        {"w",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.w = node.get<int>();
+         }},
 
-        {"ttl", LHDR{drawitem.ttl = NINT;}},
-        {"id", LHDR{drawitem.id = NSTR;}},
-        {"msgid", LHDR{drawitem.id = NSTR;}},
-        {"shapeid", LHDR{drawitem.id = NSTR;}},
-        {"command", LHDR{drawitem.command = NSTR; }},
-    };
-#undef NINT
-#undef NSTR
-#undef LHDR
-#undef FUNC_PARAMS
+        {"h",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.h = node.get<int>();
+         }},
+
+        {"color",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.color = node.get<std::string>();
+         }},
+
+        {"text",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::text;
+             drawitem.text.text = node.get<std::string>();
+         }},
+        {"size",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::text;
+             drawitem.text.size = node.get<std::string>();
+         }},
+
+        {"font_size",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::text;
+             drawitem.text.fontSize = node.get<int>();
+         }},
+
+        {"shape",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.shape = node.get<std::string>();
+         }},
+
+        {"fill",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.fill = node.get<std::string>();
+         }},
+
+        {"vector",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.vect = node;
+         }},
+
+        {"ttl",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.ttl = node.get<int>();
+         }},
+
+        {"id",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.id = node.get<std::string>();
+         }},
+
+        {"msgid",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.id = node.get<std::string>();
+         }},
+
+        {"shapeid",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.id = node.get<std::string>();
+         }},
+
+        {"command",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.command = node.get<std::string>();
+         }},
+      };
 
     draw_items_t result;
-    const auto parseSingleObject = [&result](const auto& aObject)
-    {
+    const auto parseSingleObject = [&result](const auto &aObject) {
         drawitem_t drawitem;
-        for (const auto& kv : aObject.items())
+        for (const auto &kv : aObject.items())
         {
-            //std::cout << "Key: [" << kv.key() << "]" << std::endl;
+            // std::cout << "Key: [" << kv.key() << "]" << std::endl;
 
             const auto it = processors.find(kv.key());
             if (it != processors.end())
@@ -192,15 +247,15 @@ inline draw_items_t parseJsonString(const std::string& src)
                 it->second(kv.value(), drawitem);
                 if (prev_mode != drawmode_t::idk && drawitem.drawmode != prev_mode)
                 {
-                    std::cout << "Mode was double switched text/shape in the same JSON. Ignoring." <<
-                              std::endl;
+                    std::cout << "Mode was double switched text/shape in the same JSON. Ignoring."
+                              << std::endl;
                     drawitem.drawmode = drawmode_t::idk;
                     break;
                 }
             }
             else
             {
-                std::cout << "bad key: \"" << kv.key() <<"\"" << std::endl;
+                std::cout << "bad key: \"" << kv.key() << "\"" << std::endl;
             }
         }
         if (drawitem.drawmode != draw_task::drawmode_t::idk || drawitem.isCommand())
@@ -212,8 +267,8 @@ inline draw_items_t parseJsonString(const std::string& src)
                 drawitem.id = prefix + std::to_string(id++);
                 if (drawitem.ttl.ttl < std::chrono::seconds::zero())
                 {
-                    //We do not allow messages without ID stay forever.
-                    //Because without ID it cannot be overwritten / cleansed.
+                    // We do not allow messages without ID stay forever.
+                    // Because without ID it cannot be overwritten / cleansed.
                     drawitem.ttl.ttl = std::chrono::seconds(60);
                 }
             }
@@ -227,7 +282,7 @@ inline draw_items_t parseJsonString(const std::string& src)
         const auto jsrc = json::parse(src);
         if (jsrc.is_array())
         {
-            for (const auto& arr_elem : jsrc)
+            for (const auto &arr_elem : jsrc)
             {
                 parseSingleObject(arr_elem);
             }
@@ -241,26 +296,26 @@ inline draw_items_t parseJsonString(const std::string& src)
     return result;
 }
 
-//generates lines (x1;y1)-(x2;y2) and calls user callback with it
-//to avoid copy-paste of code for different output devices
+// generates lines (x1;y1)-(x2;y2) and calls user callback with it
+// to avoid copy-paste of code for different output devices
 template <class Callback>
-inline bool ForEachVectorPointsPair(const drawitem_t& src, const Callback& func)
+inline bool ForEachVectorPointsPair(const drawitem_t &src, const Callback &func)
 {
     if (src.drawmode == draw_task::drawmode_t::shape && src.shape.shape == "vect")
     {
         constexpr static int UNINIT_COORD = std::numeric_limits<int>::max();
         int x1 = UNINIT_COORD, y1 = UNINIT_COORD, x2 = UNINIT_COORD, y2 = UNINIT_COORD;
-        for (const auto& node_ : src.shape.vect.items())
+        for (const auto &node_ : src.shape.vect.items())
         {
             // node_ is a point
-            const auto& val = node_.value();
+            const auto &val = node_.value();
             int x = 0, y = 0;
             try
             {
                 x = val["x"].get<int>();
                 y = val["y"].get<int>();
             }
-            catch (std::exception& e)
+            catch (std::exception &e)
             {
                 std::cerr << "Json-point parse failed with message: " << e.what() << std::endl;
                 break;

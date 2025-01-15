@@ -1,0 +1,117 @@
+# .clang-format
+BasedOnStyle: LLVM  # Используем LLVM как базовый стиль и переопределяем нужные параметры
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '<(SFML|boost|GL|X11)\/([A-Za-z0-9.\/-_])+>'
+    CaseSensitive: true
+    Priority:        10
+  - Regex:           '<(gtest|gmock)\/([A-Za-z0-9.\/-_])+>'
+    CaseSensitive: true
+    Priority:        90
+  # Headers in <> without extension (stdlib).
+  - Regex:           '<([A-Za-z0-9\Q/-_\E])+>'
+    Priority:        80
+  # System headers coming there too.
+  - Regex:           '<(bits)\/([A-Za-z0-9.\/-_])+>'
+    CaseSensitive: true
+    Priority:        80
+
+ # Headers in "" with extension.
+  - Regex:           '"([A-Za-z0-9.\Q/-_\E])+"'
+    Priority:        5
+ # Headers in <> with extension.
+  - Regex:           '<([A-Za-z0-9.\Q/-_\E])+>'
+    Priority:        20
+
+# Опционально, если вы хотите явно указать Allman стилизацию
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterExternBlock: true
+  BeforeLambdaBody: false
+  AfterControlStatement: true
+  AfterNamespace: false
+  AfterStruct: true
+  AfterClass: true
+  AfterUnion: true
+  BeforeWhile: true
+  BeforeCatch: true
+  BeforeElse: true
+  SplitEmptyFunction: true
+  SplitEmptyNamespace: true
+  SplitEmptyRecord: true
+
+SpacesInParens: Custom
+SpacesInParensOptions:
+  InConditionalStatements: false
+  InEmptyParentheses: false
+  InCStyleCasts: false
+  Other: false
+SpacesInSquareBrackets: false
+
+# Should be declared this way:
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+  AfterIfMacros: false
+  AfterOverloadedOperator: false
+  AfterRequiresInClause: false
+  BeforeNonEmptyParentheses: false
+
+# Другие настройки
+IndentWidth: 4
+ColumnLimit: 100
+ContinuationIndentWidth: 2
+TabWidth: 4
+UseTab: Never
+
+
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+
+SpaceBeforeAssignmentOperators: true
+SpaceAfterTemplateKeyword: true
+SpaceInEmptyParentheses: true
+
+AlignTrailingComments: true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+AlignOperands: Align
+BreakAfterAttributes: Always
+
+AllowBreakBeforeNoexceptSpecifier: Never
+AllowAllArgumentsOnNextLine: true
+BinPackArguments: true
+Cpp11BracedListStyle: true
+AlignAfterOpenBracket: Align
+
+AllowAllParametersOfDeclarationOnNextLine: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeConceptDeclarations: Always
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: true
+AlwaysBreakTemplateDeclarations: Yes
+
+BreakConstructorInitializers: AfterColon
+PackConstructorInitializers: Never
+
+BreakInheritanceList: AfterColon
+
+LambdaBodyIndentation: Signature
+AllowShortLambdasOnASingleLine: None
+BitFieldColonSpacing: None
+
+SpacesInAngles: Never
+Standard: c++17
+
+#clang-19
+#BreakFunctionDefinitionParameters: false
+#clang-20
+#BreakBinaryOperations: RespectPrecedence
