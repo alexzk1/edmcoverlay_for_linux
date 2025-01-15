@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     draw_task::draw_items_t allDraws;
 
     // FIXME: replace all that by boost:asio
-    serverThread = utility::startNewRunner([&mut, &allDraws](auto should_close_ptr) {
+    serverThread = utility::startNewRunner([&mut, &allDraws](const auto& should_close_ptr) {
         const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p) {
             if (p)
             {
