@@ -51,7 +51,13 @@ class OverlayImpl:
         self.send_command("exit")
 
     def _send_raw_text(self, inpstr: str):
-        inpstr = inpstr.replace("\\u202f", "\\u00a0")
+        # print("Raw inpstr: ", inpstr)
+        inpstr = (
+            inpstr.replace("\\u202f", "\\u00a0")
+            .replace("\\ud83d\\udcc8", "*")
+            .replace("\\ud83d\\udcdd", "»")
+        )
+
         bstr = inpstr.encode("utf-8")
         for retries in range(1, 7):
             try:
