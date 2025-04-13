@@ -21,10 +21,16 @@ except ImportError:
         edmcoverlay = None
 ```
 * Added WM_CLASS set to `edmc_linux_overlay_class` for the overlay window.
+* Added Cairo to draw the shapes (if found installed in the system).
 
 ## Example Screenshot(s)
 
 ![ttf_example](https://github.com/alexzk1/edmcoverlay2/assets/4589845/60120533-ee49-4b47-9804-4cd3075d2426)
+
+Bioscan's radar with Cairo:
+
+![image](https://github.com/user-attachments/assets/2f673159-7cfb-4b0e-97d0-0eee7a60eddf)
+
 
 ## Installation
 
