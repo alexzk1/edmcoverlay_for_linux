@@ -548,7 +548,8 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
         };
 
         const auto drawMarker = [this, &g_display, &gc,
-                                 &g_win](const draw_task::TMarkerInVectorInShape &marker) {
+                                 &g_win](const draw_task::TMarkerInVectorInShape &marker,
+                                         int vector_font_size) {
             static constexpr int kMarkerHalfSize = 4;
             const auto marker_color = xserv->colors->get(marker.color);
             XSetForeground(g_display, gc, marker_color.pixel);
@@ -573,8 +574,10 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 
             if (marker.HasText())
             {
-                xserv->drawUtf8String(xserv->getFont("normal"), marker.color, marker.x + 10,
-                                      marker.y + 20, marker.text, ETextDecor::NoRectangle);
+                const auto font = vector_font_size > 0 ? xserv->getFont(vector_font_size)
+                                                       : xserv->getFont("normal");
+                xserv->drawUtf8String(font, marker.color, marker.x + 10, marker.y + 20, marker.text,
+                                      ETextDecor::NoRectangle);
             }
         };
 

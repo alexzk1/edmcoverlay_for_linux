@@ -98,6 +98,7 @@ struct drawitem_t
         std::string fill;
         int w{0};
         int h{0};
+        int vector_font_size{0};
         json vect;
 
         bool operator==(const drawshape_t &other) const
@@ -200,6 +201,12 @@ inline draw_items_t parseJsonString(const std::string &src)
          [](const json &node, drawitem_t &drawitem) {
              drawitem.drawmode = drawmode_t::text;
              drawitem.text.fontSize = node.get<int>();
+         }},
+
+        {"vector_font_size",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::shape;
+             drawitem.shape.vector_font_size = node.get<int>();
          }},
 
         {"shape",
@@ -411,7 +418,7 @@ inline bool ForEachVectorPointsPair(const drawitem_t &src, const taLineDrawer &l
 
         if (marker.IsSet())
         {
-            markerDrawer(marker);
+            markerDrawer(marker, src.shape.vector_font_size);
         }
 
         if (x1 == UNINIT_COORD)
