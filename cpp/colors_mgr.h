@@ -149,18 +149,20 @@ class MyXOverlayColorMap
         };
 
         TRGBAColor curr{0xFF, 0xFF, 0xFF, kAlpha};
-
-        if (name.rfind("#", 0) == 0)
+        const auto nameLen = name.length();
+        const bool nl7 = nameLen == 7;
+        const bool nl9 = nameLen == 9;
+        if ((nl7 || nl9) && name.rfind /*Last occurence*/ ("#", 0) == 0)
         {
             // direct hex color code
-            if (name.length() == 7)
+            if (nl7)
             {
                 unsigned int r, g, b;
                 sscanf(name.c_str(), "#%02x%02x%02x", &r, &g, &b);
                 curr = TRGBAColor{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
                                   static_cast<uint8_t>(b), static_cast<uint8_t>(kAlpha)};
             }
-            if (name.length() == 9)
+            if (nl9)
             {
                 unsigned int a, r, g, b;
                 sscanf(name.c_str(), "#%02x%02x%02x%02x", &a, &r, &g, &b);
