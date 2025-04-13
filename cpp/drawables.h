@@ -12,8 +12,10 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 
 namespace draw_task {
 using json = nlohmann::json;
@@ -49,6 +51,17 @@ enum class drawmode_t : std::uint8_t {
     text,
     shape,
 };
+
+inline std::ostream &operator<<(std::ostream &os, drawmode_t val)
+{
+    static std::unordered_map<drawmode_t, std::string> enum2str{
+      {drawmode_t::idk, "unknown"},
+      {drawmode_t::text, "text"},
+      {drawmode_t::shape, "shape"},
+    };
+    os << enum2str.at(val);
+    return os;
+}
 
 struct drawitem_t
 {
@@ -234,7 +247,7 @@ inline draw_items_t parseJsonString(const std::string &src)
       };
 
     draw_items_t result;
-    const auto parseSingleObject = [&result](const auto &aObject) {
+    const auto parseSingleObject = [&result, &src](const auto &aObject) {
         drawitem_t drawitem;
         for (const auto &kv : aObject.items())
         {
@@ -247,8 +260,10 @@ inline draw_items_t parseJsonString(const std::string &src)
                 it->second(kv.value(), drawitem);
                 if (prev_mode != drawmode_t::idk && drawitem.drawmode != prev_mode)
                 {
-                    std::cout << "Mode was double switched text/shape in the same JSON. Ignoring."
-                              << std::endl;
+                    std::cerr << "Mode was double switched text/shape in the same JSON. "
+                              << "From " << prev_mode << " to " << drawitem.drawmode << ". "
+                              << "Ignoring. Full source json:\n"
+                              << src << std::endl;
                     drawitem.drawmode = drawmode_t::idk;
                     break;
                 }
@@ -296,57 +311,128 @@ inline draw_items_t parseJsonString(const std::string &src)
     return result;
 }
 
-// generates lines (x1;y1)-(x2;y2) and calls user callback with it
-// to avoid copy-paste of code for different output devices
-template <class Callback>
-inline bool ForEachVectorPointsPair(const drawitem_t &src, const Callback &func)
+/// @brief Represents shape "vector" / marker style in json.
+struct TMarkerInVectorInShape
 {
-    if (src.drawmode == draw_task::drawmode_t::shape && src.shape.shape == "vect")
-    {
-        constexpr static int UNINIT_COORD = std::numeric_limits<int>::max();
-        int x1 = UNINIT_COORD, y1 = UNINIT_COORD, x2 = UNINIT_COORD, y2 = UNINIT_COORD;
-        for (const auto &node_ : src.shape.vect.items())
-        {
-            // node_ is a point
-            const auto &val = node_.value();
-            int x = 0, y = 0;
-            try
-            {
-                x = val["x"].get<int>();
-                y = val["y"].get<int>();
-            }
-            catch (std::exception &e)
-            {
-                std::cerr << "Json-point parse failed with message: " << e.what() << std::endl;
-                break;
-            }
-            catch (...)
-            {
-                std::cerr << "Json-point parse failed with uknnown reason." << std::endl;
-                break;
-            }
+    int x{-1};
+    int y{-1};
 
-            if (x1 == UNINIT_COORD)
+    std::string color;
+    std::string type;
+    std::string text;
+
+    [[nodiscard]]
+    bool IsSet() const
+    {
+        return !color.empty();
+    }
+
+    [[nodiscard]]
+    bool IsCross() const
+    {
+        return type == "cross";
+    }
+
+    [[nodiscard]]
+    bool IsCircle() const
+    {
+        return type == "circle";
+    }
+
+    [[nodiscard]]
+    bool HasText() const
+    {
+        return !text.empty();
+    }
+
+    static TMarkerInVectorInShape FromVectorNode(const json &val)
+    {
+        static constexpr auto kMarkerKey = "marker";
+        static constexpr auto kMarkerColorKey = "color";
+        static constexpr auto kMarkerTextKey = "text";
+
+        TMarkerInVectorInShape marker;
+        const auto getStr = [&](const auto &key) -> std::string {
+            if (val.contains(key))
             {
-                x1 = x;
-                y1 = y;
-                continue;
+                return val[key].template get<std::string>();
             }
-            if (x2 == UNINIT_COORD)
-            {
-                x2 = x;
-                y2 = y;
-                func(x1, y1, x2, y2);
-                continue;
-            }
-            x1 = x2;
-            y1 = y2;
+            return {};
+        };
+
+        marker.x = val["x"].get<int>();
+        marker.y = val["y"].get<int>();
+        marker.color = getStr(kMarkerColorKey);
+        marker.type = getStr(kMarkerKey);
+        marker.text = getStr(kMarkerTextKey);
+        return marker;
+    }
+};
+
+/// @brief Parses json's "vect" object and calls related drawers.
+/// @note It uses provided drawer to avoid copy-paste of code for different output devices (like
+/// X11/Wayland).
+/// @returns false if @p src is not a "vector" shape.
+/// @param taLineDrawer - drawer for lines.
+/// @param taMarkerDrawer - drawer for markers.
+template <typename taLineDrawer, typename taMarkerDrawer>
+inline bool ForEachVectorPointsPair(const drawitem_t &src, const taLineDrawer &lineDrawer,
+                                    const taMarkerDrawer &markerDrawer)
+{
+    if (!(src.drawmode == draw_task::drawmode_t::shape && src.shape.shape == "vect"))
+    {
+        return false;
+    }
+    constexpr static int UNINIT_COORD = std::numeric_limits<int>::max();
+    int x1 = UNINIT_COORD, y1 = UNINIT_COORD, x2 = UNINIT_COORD, y2 = UNINIT_COORD;
+
+    for (const auto &node_ : src.shape.vect.items())
+    {
+        // node_ is a point
+        const auto &val = node_.value();
+        int x = 0, y = 0;
+        TMarkerInVectorInShape marker;
+        try
+        {
+            x = val["x"].get<int>();
+            y = val["y"].get<int>();
+            marker = TMarkerInVectorInShape::FromVectorNode(val);
+        }
+        catch (std::exception &e)
+        {
+            std::cerr << "Json-point parse failed with message: " << e.what() << std::endl;
+            break;
+        }
+        catch (...)
+        {
+            std::cerr << "Json-point parse failed with uknnown reason." << std::endl;
+            break;
+        }
+
+        if (marker.IsSet())
+        {
+            markerDrawer(marker);
+        }
+
+        if (x1 == UNINIT_COORD)
+        {
+            x1 = x;
+            y1 = y;
+            continue;
+        }
+        if (x2 == UNINIT_COORD)
+        {
             x2 = x;
             y2 = y;
-            func(x1, y1, x2, y2);
+            lineDrawer(x1, y1, x2, y2);
+            continue;
         }
-        return true;
+        x1 = x2;
+        y1 = y2;
+        x2 = x;
+        y2 = y;
+        lineDrawer(x1, y1, x2, y2);
     }
-    return false;
+    return true;
 }
 } // namespace draw_task

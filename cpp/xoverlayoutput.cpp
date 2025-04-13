@@ -41,6 +41,11 @@ constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | Butto
                                            | ButtonReleaseMask | PointerMotionMask
                                            | ButtonMotionMask;
 
+enum class ETextDecor {
+    NoRectangle,
+    Rectangle,
+};
+
 /// @brief Keeps window strings.
 /// @note String [buffer] must exist while allocated hint exists.
 class CWindowClass
@@ -432,7 +437,7 @@ class XPrivateAccess
     }
 
     void drawUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aColor, int aX, int aY,
-                        const std::string &aString, bool aRectangle) const
+                        const std::string &aString, const ETextDecor aRectangle) const
     {
         // https://github.com/jsynacek/xft-example/blob/master/main.c
 
@@ -445,7 +450,7 @@ class XPrivateAccess
             throw std::runtime_error("Tried to draw string without font!!!");
         }
 
-        if (aRectangle)
+        if (ETextDecor::Rectangle == aRectangle)
         {
             XGlyphInfo extents;
             XftTextExtentsUtf8(g_display, aFont, str, length, &extents);
@@ -513,7 +518,7 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, true);
+    xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, ETextDecor::Rectangle);
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
@@ -527,18 +532,53 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
         const auto &font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
                                                   : xserv->getFont(drawitem.text.size);
         xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text,
-                              false);
+                              ETextDecor::NoRectangle);
     }
     else
     {
+        // std::cout << "]]]]]] SHAPE draw requested." << std::endl;
+
         const auto main_color = xserv->colors->get(drawitem.color);
         XSetForeground(g_display, gc, main_color.pixel);
 
-        const bool had_vec =
-          draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2, int y2) {
-              XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
-          });
+        const auto drawLine = [&](int x1, int y1, int x2, int y2) {
+            // std::cout << "]]]]]] draw line (" << x1 << "; " << y1 << ") - (" << x2 << "; " << y2
+            //           << ")" << std::endl;
+            XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
+        };
 
+        const auto drawMarker = [this, &g_display, &gc,
+                                 &g_win](const draw_task::TMarkerInVectorInShape &marker) {
+            static constexpr int kMarkerHalfSize = 4;
+            const auto marker_color = xserv->colors->get(marker.color);
+            XSetForeground(g_display, gc, marker_color.pixel);
+            // std::cout << "]]]]]] draw marker (" << marker.x << "; " << marker.y << "), color "
+            //           << marker.color << ", type " << marker.type << ", text " << marker.text
+            //           << std::endl;
+            if (marker.IsCircle())
+            {
+                XDrawArc(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                         marker.y - kMarkerHalfSize, 2 * kMarkerHalfSize, 2 * kMarkerHalfSize, 0,
+                         360 * 64);
+            }
+            if (marker.IsCross())
+            {
+                XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                          marker.y - kMarkerHalfSize, marker.x + kMarkerHalfSize,
+                          marker.y + kMarkerHalfSize);
+                XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                          marker.y + kMarkerHalfSize, marker.x + kMarkerHalfSize,
+                          marker.y - kMarkerHalfSize);
+            }
+
+            if (marker.HasText())
+            {
+                xserv->drawUtf8String(xserv->getFont("normal"), marker.color, marker.x + 10,
+                                      marker.y + 20, marker.text, ETextDecor::NoRectangle);
+            }
+        };
+
+        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, drawLine, drawMarker);
         if (!had_vec && drawitem.shape.shape == "rect")
         {
             // TODO distinct fill/edge colour

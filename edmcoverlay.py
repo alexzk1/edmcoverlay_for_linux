@@ -78,13 +78,9 @@ class OverlayImpl:
         return None
 
     def _send2bin(self, owner: str, msg: dict):
-        if "font_size" not in msg:
-            font = "normal"
-            if "size" in msg:
-                font = msg["size"]
-
+        if "font_size" not in msg and "shape" not in msg:
+            font = msg.get("size", "normal")
             msg["font_size"] = self.__config.getFontSize(owner, font)
-
         self._send_raw_text(json.dumps(msg))
 
     def send_command(self, command: str):
