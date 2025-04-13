@@ -160,6 +160,13 @@ class MyXOverlayColorMap
                 curr = TRGBAColor{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
                                   static_cast<uint8_t>(b), static_cast<uint8_t>(kAlpha)};
             }
+            if (name.length() == 9)
+            {
+                unsigned int a, r, g, b;
+                sscanf(name.c_str(), "#%02x%02x%02x%02x", &a, &r, &g, &b);
+                curr = TRGBAColor{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
+                                  static_cast<uint8_t>(b), static_cast<uint8_t>(a)};
+            }
         }
         else
         {
