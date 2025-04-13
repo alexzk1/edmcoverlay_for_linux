@@ -463,6 +463,18 @@ class XPrivateAccess
         return count;
     }
 
+    /// @returns dimensions of the string @p aString drawn by @p aFont.
+    XGlyphInfo measureUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aString) const
+    {
+        const auto length = static_cast<int>(aString.length());
+        // NOLINTNEXTLINE
+        const auto *str = reinterpret_cast<const FcChar8 *>(aString.c_str());
+
+        XGlyphInfo extents;
+        XftTextExtentsUtf8(g_display, aFont, str, length, &extents);
+        return extents;
+    }
+
     void drawUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aColor, int aX, int aY,
                         const std::string &aString, const ETextDecor aRectangle) const
     {
@@ -479,9 +491,7 @@ class XPrivateAccess
 
         if (ETextDecor::Rectangle == aRectangle)
         {
-            XGlyphInfo extents;
-            XftTextExtentsUtf8(g_display, aFont, str, length, &extents);
-
+            const auto extents = measureUtf8String(aFont, aString);
             const auto &black = colors->get("black");
             XSetForeground(g_display, single_gc, black.pixel);
             XFillRectangle(g_display, g_win, single_gc, aX, aY, extents.width, extents.height);
@@ -650,7 +660,11 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
             {
                 const auto font = vector_font_size > 0 ? xserv->getFont(vector_font_size)
                                                        : xserv->getFont("normal");
-                xserv->drawUtf8String(font, marker.color, marker.x + 10, marker.y + 20, marker.text,
+                const auto extents = xserv->measureUtf8String(font, {marker.text.at(0)});
+
+                xserv->drawUtf8String(font, marker.color,
+                                      marker.x + kMarkerHalfSize + extents.width / 3,
+                                      marker.y + kMarkerHalfSize + extents.height / 3, marker.text,
                                       ETextDecor::NoRectangle);
             }
         };
