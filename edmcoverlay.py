@@ -197,16 +197,16 @@ class Overlay:
         ttl: int,
     ):
         return self.__overlay.send_shape(
-            self.__caller_path,
-            self.__token + shapeid,
-            shape,
-            color,
-            fill,
-            x,
-            y,
-            w,
-            h,
-            ttl,
+            owner=self.__caller_path,
+            shapeid=self.__token + shapeid,
+            shape=shape,
+            color=color,
+            fill=fill,
+            x=x,
+            y=y,
+            w=w,
+            h=h,
+            ttl=ttl,
         )
 
     def connect(self) -> bool:

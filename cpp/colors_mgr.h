@@ -15,6 +15,13 @@
 #include <stdexcept>
 #include <string>
 
+/// @brief Allocates and caches colors as XColor and XftColor in 2 separated lists.
+/// It understands some names like "red" and hex codes.
+/// @details This class is used to manage colors for an overlay in a graphical application.
+/// It uses the X11 library to allocate and cache colors as both XColor and XftColor objects.
+/// The class provides methods to retrieve colors by name, either as an XColor or as an XftColor.
+/// @note The class assumes that the display and window attributes are valid for the lifetime of the
+/// object.
 class MyXOverlayColorMap
 {
   private:
@@ -27,6 +34,7 @@ class MyXOverlayColorMap
     std::map<std::string, XColor> known_xcolors;
     std::map<std::string, opaque_ptr<XftColor>> known_fontcolors;
 
+    /// @brief A simple struct to represent an RGBA color.
     struct TRGBAColor
     {
         std::uint8_t red;
@@ -36,11 +44,13 @@ class MyXOverlayColorMap
 
         TRGBAColor() = delete;
 
+        /// @brief Converts an 8-bit color value to a 16-bit color value.
         static std::uint16_t upScale(std::uint8_t color)
         {
             return (static_cast<uint32_t>(color) * 0xFFFFu) / 0xFFu;
         }
 
+        /// @returns an XRenderColor object representing the RGBA color.
         [[nodiscard]]
         XRenderColor toRenderColor() const
         {
@@ -57,13 +67,17 @@ class MyXOverlayColorMap
     }
     MyXOverlayColorMap() = delete;
 
-    // we take reference here to object, so this map must be destroyed prior object destroyed
+    /// @note This class is not copyable or movable.  It assumes that the display and window
+    /// attributes are valid for the lifetime of the object.
+    /// @param g_display The X11 display to use for color allocation.
+    /// @param g_attrs The window attributes to use for color allocation.
     MyXOverlayColorMap(const opaque_ptr<Display> &g_display, XWindowAttributes g_attrs) :
         g_display(g_display),
         g_attrs(g_attrs)
     {
     }
 
+    /// @brief Retrieves a color by name or hexcode as an XColor.
     const XColor &get(std::string name)
     {
         // making string lowercased as we use names in lowercase everywhere here
@@ -83,6 +97,7 @@ class MyXOverlayColorMap
         return known_xcolors[name];
     }
 
+    /// @brief Retrieves a color by name or hexcode as an XftColor.
     opaque_ptr<XftColor> getFontColor(std::string name)
     {
         std::transform(name.begin(), name.end(), name.begin(), [](auto c) {
@@ -101,6 +116,10 @@ class MyXOverlayColorMap
         return known_fontcolors[name];
     }
 
+    /// @brief This function is used to decode a color name or hexcode into an RGB(A) color.
+    /// @param name The color name or hexcode to decode.  If the name starts with "#", it is assumed
+    /// to be a hex code.  Otherwise, it is looked up in a map of known colors.
+    /// @return A TRGBAColor object representing the decoded color.
     static TRGBAColor decodeRGBAColor(const std::string &name)
     {
         // todo: add more colors here which can be recognized by string-name

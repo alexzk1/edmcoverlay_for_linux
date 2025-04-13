@@ -41,19 +41,20 @@ constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | Butto
                                            | ButtonReleaseMask | PointerMotionMask
                                            | ButtonMotionMask;
 
-// String [buffer] must exist while allocated hint exists.
+/// @brief Keeps window strings.
+/// @note String [buffer] must exist while allocated hint exists.
 class CWindowClass
 {
   public:
     CWindowClass() = delete;
     NO_COPYMOVE(CWindowClass);
 
-    CWindowClass(const std::string &window_class) :
+    explicit CWindowClass(const std::string &window_class) :
         window_class(window_class),
         classHint(AllocateOpaque<XClassHint>(&XFree, &XAllocClassHint))
     {
-        classHint->res_class = const_cast<char *>(window_class.c_str());
-        classHint->res_name = const_cast<char *>(window_class.c_str());
+        classHint->res_class = const_cast<char *>(window_class.c_str()); // NOLINT
+        classHint->res_name = const_cast<char *>(window_class.c_str());  // NOLINT
     }
     void Set(Display *display, Window w) const
     {
@@ -73,6 +74,7 @@ class CWindowClass
 
 } // namespace
 
+/// @brief Real tasks to do on X server, it is private, so can be replaced by Wayland.
 class XPrivateAccess
 {
   private:
@@ -176,6 +178,7 @@ class XPrivateAccess
                                    : getFont(kNormalFontSize);
     }
 
+    /// @returns true if transparency is avail in system now.
     bool isTransparencyAvail() const
     {
         if (!g_display)
@@ -213,7 +216,9 @@ class XPrivateAccess
         return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
     }
 
-    // FYI: configurable font's families below.
+    /// @brief Allocates and caches fonts. It tries to pick font family which is installed in
+    /// system, ordered according to my personal preferences.
+    /// @note configurable font's families below.
     opaque_ptr<XftFont> allocFont(const int aFontSize) const
     {
         const auto fontString = [&aFontSize](const std::string &family) {
@@ -224,6 +229,7 @@ class XPrivateAccess
             return ss.str();
         };
 
+        // Font families to try.
         static const std::vector<std::string> kFontsToTry = {
           "Liberation Mono", "DejaVu Sans Mono", "Source Code Pro", "Ubuntu Mono",     "Monospace",
           "Sans Serif",      "Liberation Serif", "Serif",           "Liberation Sans", "Open Sans",
@@ -358,7 +364,7 @@ class XPrivateAccess
         }
         Atom actual_type = 0;
         int actual_format = 0;
-        unsigned long nitems, bytes_after;
+        unsigned long nitems = 0, bytes_after = 0; // NOLINT
         unsigned char *prop = nullptr;
 
         const auto filter_atom = XInternAtom(g_display, aPropertyName, True);
@@ -525,7 +531,8 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
     }
     else
     {
-        XSetForeground(g_display, gc, xserv->colors->get(drawitem.color).pixel);
+        const auto main_color = xserv->colors->get(drawitem.color);
+        XSetForeground(g_display, gc, main_color.pixel);
 
         const bool had_vec =
           draw_task::ForEachVectorPointsPair(drawitem, [&](int x1, int y1, int x2, int y2) {
