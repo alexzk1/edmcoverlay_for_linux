@@ -14,6 +14,7 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 /// @brief Allocates and caches colors as XColor and XftColor in 2 separated lists.
 /// It understands some names like "red" and hex codes.
@@ -34,6 +35,7 @@ class MyXOverlayColorMap
     std::map<std::string, XColor> known_xcolors;
     std::map<std::string, opaque_ptr<XftColor>> known_fontcolors;
 
+  public:
     /// @brief A simple struct to represent an RGBA color.
     struct TRGBAColor
     {
@@ -55,6 +57,20 @@ class MyXOverlayColorMap
         XRenderColor toRenderColor() const
         {
             return {upScale(red), upScale(green), upScale(blue), upScale(alpha)};
+        }
+
+        using cairo_color_t = std::tuple<double, double, double, double>;
+
+        /// @returns a packed color tuple representing the RGBA color usable with Cairo.
+        [[nodiscard]]
+        cairo_color_t toPackedColorDoubles() const
+        {
+            static constexpr double div = 256.0;
+            static_assert(sizeof(decltype(red)) == 1);
+            static_assert(sizeof(decltype(green)) == 1);
+            static_assert(sizeof(decltype(blue)) == 1);
+            static_assert(sizeof(decltype(alpha)) == 1);
+            return {red / div, green / div, blue / div, alpha / div};
         }
     };
 
