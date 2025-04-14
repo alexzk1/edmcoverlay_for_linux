@@ -46,19 +46,17 @@ class MyXOverlayColorMap
 
         TRGBAColor() = delete;
 
-        /// @brief Converts an 8-bit color value to a 16-bit color value.
-        static std::uint16_t upScale(std::uint8_t color)
-        {
-            return (static_cast<uint32_t>(color) * 0xFFFFu) / 0xFFu;
-        }
-
         /// @returns an XRenderColor object representing the RGBA color.
         [[nodiscard]]
         XRenderColor toRenderColor() const
         {
+            const static auto upScale = [](std::uint8_t color) -> std::uint16_t {
+                return (static_cast<uint32_t>(color) * 0xFFFFu) / 0xFFu;
+            };
             return {upScale(red), upScale(green), upScale(blue), upScale(alpha)};
         }
 
+        /// @returns integer color converted to double in range [0;1].
         template <typename T>
         static constexpr double ConvertColorComponent(T val)
         {
@@ -71,6 +69,8 @@ class MyXOverlayColorMap
             return static_cast<double>(val) / max_value;
         }
 
+        /// @returns Converted multiply color (components) into tuple of the doubles in the same
+        /// order as parameters passed.
         template <typename First, typename... Rest>
         static constexpr auto ConvertColorComponents(First first, Rest... rest)
         {
