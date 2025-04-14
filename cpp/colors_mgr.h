@@ -7,14 +7,14 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrender.h>
 
-#include <stdint.h>
-
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 
 /// @brief Allocates and caches colors as XColor and XftColor in 2 separated lists.
 /// It understands some names like "red" and hex codes.
@@ -59,18 +59,35 @@ class MyXOverlayColorMap
             return {upScale(red), upScale(green), upScale(blue), upScale(alpha)};
         }
 
+        template <typename T>
+        static constexpr double ConvertColorComponent(T val)
+        {
+            static_assert(std::is_integral_v<T>, "Color component must be an integral type");
+            static_assert(sizeof(T) <= sizeof(uint64_t), "Color component type too large");
+
+            using unsigned_t = std::make_unsigned_t<T>;
+            constexpr auto max_value = static_cast<double>(std::numeric_limits<unsigned_t>::max());
+
+            return static_cast<double>(val) / max_value;
+        }
+
+        template <typename First, typename... Rest>
+        static constexpr auto ConvertColorComponents(First first, Rest... rest)
+        {
+            static_assert(sizeof...(Rest) >= 1, "At least two components required");
+            static_assert(std::conjunction_v<std::is_integral<First>, std::is_integral<Rest>...>,
+                          "All components must be integral types");
+
+            return std::make_tuple(ConvertColorComponent(first), ConvertColorComponent(rest)...);
+        }
+
         using cairo_color_t = std::tuple<double, double, double, double>;
 
         /// @returns a packed color tuple representing the RGBA color usable with Cairo.
         [[nodiscard]]
         cairo_color_t toPackedColorDoubles() const
         {
-            static constexpr double div = 256.0;
-            static_assert(sizeof(decltype(red)) == 1);
-            static_assert(sizeof(decltype(green)) == 1);
-            static_assert(sizeof(decltype(blue)) == 1);
-            static_assert(sizeof(decltype(alpha)) == 1);
-            return {red / div, green / div, blue / div, alpha / div};
+            return ConvertColorComponents(red, green, blue, alpha);
         }
     };
 
