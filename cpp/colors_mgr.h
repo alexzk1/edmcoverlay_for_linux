@@ -3,14 +3,17 @@
 #include "cm_ctors.h"
 #include "opaque_ptr.h"
 
+#include <X11/X.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrender.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -46,7 +49,7 @@ class MyXOverlayColorMap
 
         TRGBAColor() = delete;
 
-        /// @returns an XRenderColor object representing the RGBA color.
+        /// @returns an XRenderColor object representing this RGBA color.
         [[nodiscard]]
         XRenderColor toRenderColor() const
         {
@@ -169,19 +172,19 @@ class MyXOverlayColorMap
         const auto nameLen = name.length();
         const bool nl7 = nameLen == 7;
         const bool nl9 = nameLen == 9;
-        if ((nl7 || nl9) && name.rfind /*Last occurence*/ ("#", 0) == 0)
+        if ((nl7 || nl9) && name.rfind /*Last occurence*/ ('#', 0) == 0)
         {
             // direct hex color code
             if (nl7)
             {
-                unsigned int r, g, b;
+                unsigned int r = 0, g = 0, b = 0;
                 sscanf(name.c_str(), "#%02x%02x%02x", &r, &g, &b);
                 curr = TRGBAColor{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
                                   static_cast<uint8_t>(b), static_cast<uint8_t>(kAlpha)};
             }
             if (nl9)
             {
-                unsigned int a, r, g, b;
+                unsigned int a = 0, r = 0, g = 0, b = 0;
                 sscanf(name.c_str(), "#%02x%02x%02x%02x", &a, &r, &g, &b);
                 curr = TRGBAColor{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
                                   static_cast<uint8_t>(b), static_cast<uint8_t>(a)};
@@ -200,11 +203,17 @@ class MyXOverlayColorMap
     }
 
   private:
+    /// @note This function allocates a new XColor and sets its fields based on the given color
+    /// name or hex value.
+    [[nodiscard]]
     XColor colorFromName(const std::string &name) const
     {
         return createXColorFromRGBA(decodeRGBAColor(name));
     }
 
+    /// @note This function allocates a new XColor and sets its fields based on the given RGBA
+    /// color.
+    [[nodiscard]]
     XColor createXColorFromRGBA(const TRGBAColor &aRGBA) const
     {
         auto color = allocCType<XColor>();
@@ -224,6 +233,9 @@ class MyXOverlayColorMap
         return color;
     }
 
+    /// @note This function allocates a new XftColor and sets its fields based on the given color
+    /// name or hex value.
+    [[nodiscard]]
     opaque_ptr<XftColor> createFontColor(const std::string &name) const
     {
         const auto renderColor = decodeRGBAColor(name).toRenderColor();
