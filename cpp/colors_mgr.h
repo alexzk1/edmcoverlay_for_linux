@@ -63,9 +63,13 @@ class MyXOverlayColorMap
         template <typename T>
         static constexpr double ConvertColorComponent(T val)
         {
-            static_assert(std::is_integral_v<T>, "Color component must be an integral type");
-            static_assert(sizeof(T) <= sizeof(uint64_t), "Color component type too large");
+            static_assert(std::is_integral_v<T>, "Color component must be an integral type.");
+            static_assert(sizeof(T) <= sizeof(std::uint64_t), "Color component type too large.");
 
+            static_assert(std::is_unsigned_v<T>, "Signed type is not supported yet. Revise here.");
+
+            // TODO: I'm not sure what will happen if we use signed type as source. Let's just fail
+            // compilation until real need.
             using unsigned_t = std::make_unsigned_t<T>;
             constexpr auto max_value = static_cast<double>(std::numeric_limits<unsigned_t>::max());
 

@@ -207,4 +207,23 @@ inline std::string &trim(std::string &s, const char *t = " \t\n\r\f\v")
     return ltrim(rtrim(s, t), t);
 }
 
+inline std::string replace_tabs_with_spaces(const std::string &input, int N)
+{
+    std::ostringstream oss;
+    const std::string spaces(N, ' ');
+
+    std::for_each(input.begin(), input.end(), [&](char c) {
+        if (c == '\t')
+        {
+            oss << spaces;
+        }
+        else
+        {
+            oss << c;
+        }
+    });
+
+    return oss.str();
+}
+
 } // namespace utility

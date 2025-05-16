@@ -4,6 +4,7 @@ import time
 import tkinter as tk
 from pathlib import Path
 from subprocess import Popen
+from typing import Optional
 
 import myNotebook as nb
 from ttkHyperlinkLabel import HyperlinkLabel
@@ -17,7 +18,7 @@ from typing import Tuple
 logger.debug("Loading plugin...")
 
 __CaptionText: str = "EDMCOverlay for Linux"
-__overlay_process: Popen = None
+__overlay_process: Optional[Popen] = None
 __configVars: cfv.ConfigVars = cfv.ConfigVars()
 
 __configVars.raiseIfWrongNamed()
@@ -72,7 +73,12 @@ def __start_overlay():
         time.sleep(2)
         tmp = edmcoverlay.Overlay()
         tmp.send_message(
-            "edmcintro", "EDMC Overlay for Linux is Ready", "yellow", 30, 165, ttl=10
+            "edmcintro",
+            "EDMC Overlay for Linux is Ready\n\tNow with multiline support.",
+            "yellow",
+            30,
+            165,
+            ttl=10,
         )
 
         __iHideButDoNotStopOverlay.set(False)

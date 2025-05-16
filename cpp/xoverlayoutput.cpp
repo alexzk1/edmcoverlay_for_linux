@@ -4,6 +4,7 @@
 #include "colors_mgr.h"
 #include "drawables.h"
 #include "opaque_ptr.h"
+#include "strutils.h"
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
@@ -16,9 +17,11 @@
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/shapeconst.h>
-
 #include <fontconfig/fontconfig.h>
+#include <math.h>
 #include <memory.h>
+
+#include <utility>
 #ifdef WITH_CAIRO
     #include <cairo.h>
 
@@ -34,17 +37,19 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace {
-// Events for normal windows
-constexpr static long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask
-                                         | EnterWindowMask | LeaveWindowMask | KeyPressMask
-                                         | KeyReleaseMask | KeymapStateMask;
+constexpr int kTabSizeInSpaces = 2;
 
-constexpr static long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | ButtonPressMask
-                                           | ButtonReleaseMask | PointerMotionMask
-                                           | ButtonMotionMask;
+// Events for normal windows
+constexpr long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask
+                                  | EnterWindowMask | LeaveWindowMask | KeyPressMask
+                                  | KeyReleaseMask | KeymapStateMask;
+
+constexpr long NOT_PROPAGATE_MASK = KeyPressMask | KeyReleaseMask | ButtonPressMask
+                                    | ButtonReleaseMask | PointerMotionMask | ButtonMotionMask;
 
 enum class ETextDecor {
     NoRectangle,
@@ -475,8 +480,10 @@ class XPrivateAccess
         return extents;
     }
 
-    void drawUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aColor, int aX, int aY,
-                        const std::string &aString, const ETextDecor aRectangle) const
+    // Draws single string.
+    opaque_ptr<XftDraw> drawUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aColor,
+                                       int aX, int aY, const std::string &aString,
+                                       const ETextDecor aRectangle, opaque_ptr<XftDraw> aDraw) const
     {
         // https://github.com/jsynacek/xft-example/blob/master/main.c
 
@@ -497,19 +504,48 @@ class XPrivateAccess
             XFillRectangle(g_display, g_win, single_gc, aX, aY, extents.width, extents.height);
         }
 
-        auto color = colors->getFontColor(aColor);
+        const auto color = colors->getFontColor(aColor);
         if (!color)
         {
             throw std::runtime_error("Tried to draw string without color!!!");
         }
-        const auto attrs = getAttributes();
-        auto draw = AllocateOpaque<XftDraw>(XftDrawDestroy, XftDrawCreate, g_display, g_win,
+
+        if (!aDraw)
+        {
+            const auto attrs = getAttributes();
+            aDraw = AllocateOpaque<XftDraw>(XftDrawDestroy, XftDrawCreate, g_display, g_win,
                                             attrs.visual, attrs.colormap);
-        assert(XftDrawColormap(draw) == attrs.colormap);
-        assert(XftDrawVisual(draw) == attrs.visual);
+            assert(XftDrawColormap(aDraw) == attrs.colormap);
+            assert(XftDrawVisual(aDraw) == attrs.visual);
+        }
 
         // XftDrawRect(draw, color, 50, 50, 250, 250);
-        XftDrawStringUtf8(draw, color, aFont, aX, aY + aFont->ascent, str, length);
+        XftDrawStringUtf8(aDraw, color, aFont, aX, aY + aFont->ascent, str, length);
+
+        return aDraw;
+    }
+
+    // Draws \n separated multiline string.
+    void drawUtf8StringMultiline(const opaque_ptr<XftFont> &aFont, const std::string &aColor,
+                                 int aX, int aY, const std::string &aString,
+                                 const ETextDecor aRectangle)
+    {
+        if (!aFont)
+        {
+            throw std::runtime_error("Tried to draw string without font!!!");
+        }
+        opaque_ptr<XftDraw> draw{nullptr};
+        const int lineHeight = aFont->ascent + aFont->descent;
+        int currentY = aY;
+        std::istringstream iss(aString);
+        std::string line;
+        while (std::getline(iss, line))
+        {
+            draw = drawUtf8String(aFont, aColor, aX, currentY,
+                                  utility::replace_tabs_with_spaces(line, kTabSizeInSpaces),
+                                  aRectangle, std::move(draw));
+            currentY += lineHeight;
+        }
     }
 
     // X11 does not support 64 bit pids.
@@ -566,7 +602,7 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    xserv->drawUtf8String(xserv->getFont(12), color, 0, 0, version, ETextDecor::Rectangle);
+    xserv->drawUtf8StringMultiline(xserv->getFont(12), color, 0, 0, version, ETextDecor::Rectangle);
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
@@ -579,8 +615,8 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
     {
         const auto &font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
                                                   : xserv->getFont(drawitem.text.size);
-        xserv->drawUtf8String(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text,
-                              ETextDecor::NoRectangle);
+        xserv->drawUtf8StringMultiline(font, drawitem.color, drawitem.x, drawitem.y,
+                                       drawitem.text.text, ETextDecor::NoRectangle);
     }
     else
     {
@@ -662,10 +698,10 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
                                                        : xserv->getFont("normal");
                 const auto extents = xserv->measureUtf8String(font, {marker.text.at(0)});
 
-                xserv->drawUtf8String(font, marker.color,
-                                      marker.x + kMarkerHalfSize + extents.width / 3,
-                                      marker.y + kMarkerHalfSize + extents.height / 3, marker.text,
-                                      ETextDecor::NoRectangle);
+                xserv->drawUtf8StringMultiline(font, marker.color,
+                                               marker.x + kMarkerHalfSize + extents.width / 3,
+                                               marker.y + kMarkerHalfSize + extents.height / 3,
+                                               marker.text, ETextDecor::NoRectangle);
             }
         };
 

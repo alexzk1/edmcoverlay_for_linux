@@ -10,6 +10,7 @@ import time
 import random
 from monitor import monitor
 import _config_vars
+from typing import Optional
 
 
 def check_game_running():
@@ -20,7 +21,7 @@ class OverlayImpl:
     __instance = None
     __lock = threading.Lock()
     __initialised: bool = False
-    __config: _config_vars.ConfigVars = None
+    __config: Optional[_config_vars.ConfigVars] = None
 
     def __new__(cls, *args, **kwargs):
         with cls.__lock:
@@ -78,13 +79,14 @@ class OverlayImpl:
         return None
 
     def _send2bin(self, owner: str, msg: dict):
-        if "font_size" not in msg and "shape" not in msg:
-            font = msg.get("size", "normal")
-            msg["font_size"] = self.__config.getFontSize(owner, font)
+        if self.__config is not None:
+            if "font_size" not in msg and "shape" not in msg:
+                font = msg.get("size", "normal")
+                msg["font_size"] = self.__config.getFontSize(owner, font)
 
-        if "vector_font_size" not in msg and "vector" in msg:
-            font = msg.get("size", "normal")
-            msg["vector_font_size"] = self.__config.getFontSize(owner, font)
+            if "vector_font_size" not in msg and "vector" in msg:
+                font = msg.get("size", "normal")
+                msg["vector_font_size"] = self.__config.getFontSize(owner, font)
 
         self._send_raw_text(json.dumps(msg))
 
@@ -143,7 +145,7 @@ class OverlayImpl:
 class Overlay:
     __caller_path: str = ""
     __token: str = ""
-    __overlay: OverlayImpl = None
+    __overlay: OverlayImpl
 
     def __init__(self) -> None:
         self.__token = secrets.token_hex(4)
@@ -211,4 +213,11 @@ class Overlay:
         )
 
     def connect(self) -> bool:
+        return True
+
+    def is_multiline_supported(self) -> bool:
+        """
+        Returns:
+            bool: true if this plugin can draw multilined text direct, separated with \n.
+        """
         return True
