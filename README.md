@@ -22,7 +22,15 @@ except ImportError:
 ```
 * Added WM_CLASS set to `edmc_linux_overlay_class` for the overlay window.
 * Added Cairo to draw the shapes (if found installed in the system).
-
+* Added multiline support. Now binary replaces '\t' with fixed amount of the spaces and properly handles '\n' accounting current font used. Python object got method `is_multiline_supported()`. It can be tested by other plugins as:
+```
+def supports_multiline(obj) -> bool:
+    return (
+        hasattr(obj, "is_multiline_supported")
+        and callable(getattr(obj, "is_multiline_supported"))
+        and obj.is_multiline_supported()
+    )
+```
 ## Example Screenshot(s)
 
 ![ttf_example](https://github.com/alexzk1/edmcoverlay2/assets/4589845/60120533-ee49-4b47-9804-4cd3075d2426)
