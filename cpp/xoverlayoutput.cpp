@@ -17,6 +17,7 @@
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/shapeconst.h>
+
 #include <fontconfig/fontconfig.h>
 #include <math.h>
 #include <memory.h>
@@ -607,120 +608,19 @@ void XOverlayOutput::showVersionString(const std::string &version, const std::st
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 {
-    const auto &gc = xserv->single_gc;
-    const auto &g_display = xserv->g_display;
-    const auto &g_win = xserv->g_win;
-
-    if (drawitem.drawmode == draw_task::drawmode_t::text)
+    switch (drawitem.drawmode)
     {
-        const auto &font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
-                                                  : xserv->getFont(drawitem.text.size);
-        xserv->drawUtf8StringMultiline(font, drawitem.color, drawitem.x, drawitem.y,
-                                       drawitem.text.text, ETextDecor::NoRectangle);
-    }
-    else
-    {
-        const auto main_color = xserv->colors->get(drawitem.color);
-        XSetForeground(g_display, gc, main_color.pixel);
-#ifdef WITH_CAIRO
-        if (xserv->cairo)
-        {
-            xserv->cairoSetColor(drawitem.color);
-        }
-#endif
-
-        const auto drawLine = [&](int x1, int y1, int x2, int y2) {
-#ifdef WITH_CAIRO
-            if (xserv->cairo)
-            {
-                cairo_move_to(xserv->cairo, x1, y1);
-                cairo_line_to(xserv->cairo, x2, y2);
-                cairo_stroke(xserv->cairo);
-                return;
-            }
-#endif
-            XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
-        };
-
-        const auto drawMarker = [this, &g_display, &gc,
-                                 &g_win](const draw_task::TMarkerInVectorInShape &marker,
-                                         int vector_font_size) {
-            static constexpr int kMarkerHalfSize = 4;
-#ifdef WITH_CAIRO
-            if (xserv->cairo)
-            {
-                xserv->cairoSetColor(marker.color);
-                if (marker.IsCircle())
-                {
-                    cairo_arc(xserv->cairo, marker.x, marker.y, kMarkerHalfSize, 0, 2 * M_PI);
-                    cairo_fill(xserv->cairo);
-                }
-                if (marker.IsCross())
-                {
-                    cairo_move_to(xserv->cairo, marker.x - kMarkerHalfSize,
-                                  marker.y - kMarkerHalfSize);
-                    cairo_line_to(xserv->cairo, marker.x + kMarkerHalfSize,
-                                  marker.y + kMarkerHalfSize);
-
-                    cairo_move_to(xserv->cairo, marker.x - kMarkerHalfSize,
-                                  marker.y + kMarkerHalfSize);
-                    cairo_line_to(xserv->cairo, marker.x + kMarkerHalfSize,
-                                  marker.y - kMarkerHalfSize);
-
-                    cairo_stroke(xserv->cairo);
-                }
-            }
-            else
-#endif
-            {
-                const auto marker_color = xserv->colors->get(marker.color);
-                XSetForeground(g_display, gc, marker_color.pixel);
-                if (marker.IsCircle())
-                {
-                    XDrawArc(g_display, g_win, gc, marker.x - kMarkerHalfSize,
-                             marker.y - kMarkerHalfSize, 2 * kMarkerHalfSize, 2 * kMarkerHalfSize,
-                             0, 360 * 64);
-                }
-                if (marker.IsCross())
-                {
-                    XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
-                              marker.y - kMarkerHalfSize, marker.x + kMarkerHalfSize,
-                              marker.y + kMarkerHalfSize);
-                    XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
-                              marker.y + kMarkerHalfSize, marker.x + kMarkerHalfSize,
-                              marker.y - kMarkerHalfSize);
-                }
-            }
-            // Common part with/without cairo.
-            if (marker.HasText())
-            {
-                const auto font = vector_font_size > 0 ? xserv->getFont(vector_font_size)
-                                                       : xserv->getFont("normal");
-                const auto extents = xserv->measureUtf8String(font, {marker.text.at(0)});
-
-                xserv->drawUtf8StringMultiline(font, marker.color,
-                                               marker.x + kMarkerHalfSize + extents.width / 3,
-                                               marker.y + kMarkerHalfSize + extents.height / 3,
-                                               marker.text, ETextDecor::NoRectangle);
-            }
-        };
-
-        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, drawLine, drawMarker);
-        if (!had_vec && drawitem.shape.shape == "rect")
-        {
-            // TODO: distinct fill/edge colour
-#ifdef WITH_CAIRO
-            if (xserv->cairo)
-            {
-                cairo_rectangle(xserv->cairo, drawitem.x, drawitem.y, drawitem.shape.w,
-                                drawitem.shape.h);
-                cairo_stroke(xserv->cairo);
-                return;
-            }
-#endif
-            XDrawRectangle(g_display, g_win, gc, drawitem.x, drawitem.y, drawitem.shape.w,
-                           drawitem.shape.h);
-        }
+        case draw_task::drawmode_t::text:
+            drawAsText(drawitem);
+            break;
+        case draw_task::drawmode_t::shape:
+            drawAsShape(drawitem);
+            break;
+        case draw_task::drawmode_t::idk:
+            break;
+        default:
+            assert(false && "Unhandled case.");
+            break;
     }
 }
 
@@ -733,4 +633,121 @@ std::string XOverlayOutput::getFocusedWindowBinaryPath() const
         return {};
     }
     return getBinaryPathForPid(pid);
+}
+
+void XOverlayOutput::drawAsText(const draw_task::drawitem_t &drawitem)
+{
+    assert(drawitem.drawmode == draw_task::drawmode_t::text);
+
+    const auto &font = drawitem.text.fontSize ? xserv->getFont(*drawitem.text.fontSize)
+                                              : xserv->getFont(drawitem.text.size);
+    xserv->drawUtf8StringMultiline(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text,
+                                   ETextDecor::NoRectangle);
+}
+
+void XOverlayOutput::drawAsShape(const draw_task::drawitem_t &drawitem)
+{
+    assert(drawitem.drawmode == draw_task::drawmode_t::shape);
+
+    const auto &gc = xserv->single_gc;
+    const auto &g_display = xserv->g_display;
+    const auto &g_win = xserv->g_win;
+
+    const auto main_color = xserv->colors->get(drawitem.color);
+    XSetForeground(g_display, gc, main_color.pixel);
+#ifdef WITH_CAIRO
+    if (xserv->cairo)
+    {
+        xserv->cairoSetColor(drawitem.color);
+    }
+#endif
+
+    const auto drawLine = [&](int x1, int y1, int x2, int y2) {
+#ifdef WITH_CAIRO
+        if (xserv->cairo)
+        {
+            cairo_move_to(xserv->cairo, x1, y1);
+            cairo_line_to(xserv->cairo, x2, y2);
+            cairo_stroke(xserv->cairo);
+            return;
+        }
+#endif
+        XDrawLine(g_display, g_win, gc, x1, y1, x2, y2);
+    };
+
+    const auto drawMarker = [this, &g_display, &gc,
+                             &g_win](const draw_task::TMarkerInVectorInShape &marker,
+                                     int vector_font_size) {
+        static constexpr int kMarkerHalfSize = 4;
+#ifdef WITH_CAIRO
+        if (xserv->cairo)
+        {
+            xserv->cairoSetColor(marker.color);
+            if (marker.IsCircle())
+            {
+                cairo_arc(xserv->cairo, marker.x, marker.y, kMarkerHalfSize, 0, 2 * M_PI);
+                cairo_fill(xserv->cairo);
+            }
+            if (marker.IsCross())
+            {
+                cairo_move_to(xserv->cairo, marker.x - kMarkerHalfSize, marker.y - kMarkerHalfSize);
+                cairo_line_to(xserv->cairo, marker.x + kMarkerHalfSize, marker.y + kMarkerHalfSize);
+
+                cairo_move_to(xserv->cairo, marker.x - kMarkerHalfSize, marker.y + kMarkerHalfSize);
+                cairo_line_to(xserv->cairo, marker.x + kMarkerHalfSize, marker.y - kMarkerHalfSize);
+
+                cairo_stroke(xserv->cairo);
+            }
+        }
+        else
+#endif
+        {
+            const auto marker_color = xserv->colors->get(marker.color);
+            XSetForeground(g_display, gc, marker_color.pixel);
+            if (marker.IsCircle())
+            {
+                XDrawArc(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                         marker.y - kMarkerHalfSize, 2 * kMarkerHalfSize, 2 * kMarkerHalfSize, 0,
+                         360 * 64);
+            }
+            if (marker.IsCross())
+            {
+                XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                          marker.y - kMarkerHalfSize, marker.x + kMarkerHalfSize,
+                          marker.y + kMarkerHalfSize);
+                XDrawLine(g_display, g_win, gc, marker.x - kMarkerHalfSize,
+                          marker.y + kMarkerHalfSize, marker.x + kMarkerHalfSize,
+                          marker.y - kMarkerHalfSize);
+            }
+        }
+        // Common part with/without cairo.
+        if (marker.HasText())
+        {
+            const auto font =
+              vector_font_size > 0 ? xserv->getFont(vector_font_size) : xserv->getFont("normal");
+            const auto extents = xserv->measureUtf8String(font, {marker.text.at(0)});
+
+            xserv->drawUtf8StringMultiline(font, marker.color,
+                                           marker.x + kMarkerHalfSize + extents.width / 3,
+                                           marker.y + kMarkerHalfSize + extents.height / 3,
+                                           marker.text, ETextDecor::NoRectangle);
+        }
+    };
+
+    const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, drawLine, drawMarker);
+    if (!had_vec && drawitem.shape.shape == "rect")
+    {
+        // TODO: distinct fill/edge colour
+#ifdef WITH_CAIRO
+        if (xserv->cairo)
+        {
+            cairo_rectangle(xserv->cairo, drawitem.x, drawitem.y, drawitem.shape.w,
+                            drawitem.shape.h);
+            cairo_stroke(xserv->cairo);
+            return;
+        }
+#endif
+        XDrawRectangle(g_display, g_win, gc, drawitem.x, drawitem.y, drawitem.shape.w,
+                       drawitem.shape.h);
+    }
 }

@@ -33,5 +33,8 @@ class XOverlayOutput : public OutputLayer
     std::string getFocusedWindowBinaryPath() const override;
 
   private:
+    void drawAsText(const draw_task::drawitem_t &drawitem);
+    void drawAsShape(const draw_task::drawitem_t &drawitem);
+
     std::shared_ptr<XPrivateAccess> xserv{nullptr};
 };
