@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cm_ctors.h"
+#include "drawables.h"
 #include "layer_out.h"
 
 #include <memory>
@@ -23,6 +24,7 @@ class XOverlayOutput : public OutputLayer
     NO_COPYMOVE(XOverlayOutput);
     ~XOverlayOutput() override;
 
+    [[nodiscard]]
     bool isTransparencyAvail() const override;
     void cleanFrame() override;
     void flushFrame() override;
@@ -33,8 +35,5 @@ class XOverlayOutput : public OutputLayer
     std::string getFocusedWindowBinaryPath() const override;
 
   private:
-    void drawAsText(const draw_task::drawitem_t &drawitem);
-    void drawAsShape(const draw_task::drawitem_t &drawitem);
-
     std::shared_ptr<XPrivateAccess> xserv{nullptr};
 };

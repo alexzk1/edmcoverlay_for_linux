@@ -50,6 +50,7 @@ enum class drawmode_t : std::uint8_t {
     idk,
     text,
     shape,
+    svg,
 };
 
 inline std::ostream &operator<<(std::ostream &os, drawmode_t val)
@@ -58,6 +59,7 @@ inline std::ostream &operator<<(std::ostream &os, drawmode_t val)
       {drawmode_t::idk, "unknown"},
       {drawmode_t::text, "text"},
       {drawmode_t::shape, "shape"},
+      {drawmode_t::svg, "svg"},
     };
     os << enum2str.at(val);
     return os;
@@ -111,6 +113,17 @@ struct drawitem_t
         }
     } shape;
 
+    struct drawsvg_t
+    {
+        // Svg, scale should be set by caller.
+        std::string svg;
+        std::string css;
+        std::string fontFile;
+
+        // This field is set by window implementation, and serves caching purposes.
+        mutable std::function<void()> render{nullptr};
+    } svg;
+
     // Anti-flickering field,
     bool already_rendered{false};
 
@@ -147,6 +160,7 @@ using draw_items_t = std::map<std::string, drawitem_t>;
 /*
     text message: id, text, color, x, y, ttl, size, [font_size]
     shape message: id, shape, color, fill, x, y, w, h, ttl
+    svg message: id, svg, css, ttl
     color: "red", "yellow", "green", "blue", "#rrggbb"
     shape: "rect"
     size: "normal", "large"
@@ -191,6 +205,16 @@ inline draw_items_t parseJsonString(const std::string &src)
              drawitem.drawmode = drawmode_t::text;
              drawitem.text.text = node.get<std::string>();
          }},
+        {"svg",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::svg;
+             drawitem.svg.svg = node.get<std::string>();
+         }},
+        {"css",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::svg;
+             drawitem.svg.css = node.get<std::string>();
+         }},
         {"size",
          [](const json &node, drawitem_t &drawitem) {
              drawitem.drawmode = drawmode_t::text;
@@ -202,7 +226,11 @@ inline draw_items_t parseJsonString(const std::string &src)
              drawitem.drawmode = drawmode_t::text;
              drawitem.text.fontSize = node.get<int>();
          }},
-
+        {"font_file",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.drawmode = drawmode_t::svg;
+             drawitem.svg.fontFile = node.get<std::string>();
+         }},
         {"vector_font_size",
          [](const json &node, drawitem_t &drawitem) {
              drawitem.drawmode = drawmode_t::shape;
@@ -243,6 +271,10 @@ inline draw_items_t parseJsonString(const std::string &src)
          }},
 
         {"shapeid",
+         [](const json &node, drawitem_t &drawitem) {
+             drawitem.id = node.get<std::string>();
+         }},
+        {"svgid",
          [](const json &node, drawitem_t &drawitem) {
              drawitem.id = node.get<std::string>();
          }},

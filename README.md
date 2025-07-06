@@ -9,6 +9,7 @@ Only API is ported, everything else is made from scratch. This repo supports X11
 * Added basic "command" support compatible with Windows' version.
 * Added ability to detect if EliteDangerous is top window (has input focus) and hide overlay if not.
 * TTF fonts are supported.
+* Added ability to draw SVG images on overlay.
 * Now user can configure "normal"/"large" fonts' sizes from EDMC settings. Single config for all plugins and font-size per installed EDMC's plugin are supported.
 * Added check if this plugin's folder is properly named `edmcoverlay` or `EDMCOverlay`. It will crash if not. Note, either of those 2 namings may break some other plugins. As authors of those use both. That should be addressed by broken plugins. Good loading code is present into EDMC-BioScan :
 ```
@@ -39,6 +40,33 @@ Bioscan's radar with Cairo:
 
 ![image](https://github.com/user-attachments/assets/2f673159-7cfb-4b0e-97d0-0eee7a60eddf)
 
+
+## SVG Images
+You can send SVG picture using overlay's method:
+```
+overlay.send_svg(
+            svgid="logo",
+            svg=tux_svg,
+            css="",
+            x=50,
+            y=270,
+            ttl=10,
+            font_file='',
+        )
+```
+Where `svg` is full text of the svg, `css` is dynamic CSS to apply, x/y will be left-top corner of the image, dimensions are taken out of SVG itself. `font_file` - if you don't like default fonts used, you can give here absolute path on disk to the font file. It can be repeated many times, it will be loaded only once.
+
+Method `is_svg_supported()` is added too, and can be used similar to multiline detection:
+```
+def supports_svg(obj) -> bool:
+    return (
+        hasattr(obj, "is_svg_supported")
+        and callable(getattr(obj, "is_svg_supported"))
+        and obj.is_svg_supported()
+    )
+```
+
+`lunasvg` is used to render, so details about supported tags you can find there: https://github.com/sammycage/lunasvg
 
 ## Installation
 

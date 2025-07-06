@@ -80,7 +80,7 @@ class OverlayImpl:
 
     def _send2bin(self, owner: str, msg: dict):
         if self.__config is not None:
-            if "font_size" not in msg and "shape" not in msg:
+            if "font_size" not in msg and "shape" not in msg and "svg" not in msg:
                 font = msg.get("size", "normal")
                 msg["font_size"] = self.__config.getFontSize(owner, font)
 
@@ -141,6 +141,28 @@ class OverlayImpl:
         }
         self._send2bin(owner, msg)
 
+    def send_svg(
+        self,
+        owner: str,
+        svgid: str,
+        svg: str,
+        css: str,
+        font_file: str,
+        x: int,
+        y: int,
+        ttl: int,
+    ):
+        msg = {
+            "svg": svg,
+            "css": css,
+            "x": x,
+            "y": y,
+            "ttl": ttl,
+            "id": svgid,
+            "font_file": font_file,
+        }
+        self._send2bin(owner, msg)
+
 
 class Overlay:
     __caller_path: str = ""
@@ -159,6 +181,8 @@ class Overlay:
             msg["msgid"] = self.__token + str(msg["msgid"])
         if "shapeid" in msg:
             msg["shapeid"] = self.__token + str(msg["shapeid"])
+        if "svgid" in msg:
+            msg["svgid"] = self.__token + str(msg["svgid"])
         if "id" in msg:
             msg["id"] = self.__token + msg["id"]
         return self.__overlay._send2bin(self.__caller_path, msg)
@@ -212,6 +236,27 @@ class Overlay:
             ttl=ttl,
         )
 
+    def send_svg(
+        self,
+        svgid: str,
+        svg: str,
+        x: int,
+        y: int,
+        ttl: int,
+        css: str = "",
+        font_file: str = "",
+    ):
+        return self.__overlay.send_svg(
+            owner=self.__caller_path,
+            svgid=self.__token + svgid,
+            svg=svg,
+            css=css,
+            font_file=font_file,
+            x=x,
+            y=y,
+            ttl=ttl,
+        )
+
     def connect(self) -> bool:
         return True
 
@@ -219,5 +264,12 @@ class Overlay:
         """
         Returns:
             bool: true if this plugin can draw multilined text direct, separated with \n.
+        """
+        return True
+
+    def is_svg_supported(self) -> bool:
+        """
+        Returns:
+            bool: true if this plugin can render SVG direct.
         """
         return True
