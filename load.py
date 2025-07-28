@@ -82,60 +82,63 @@ def __start_overlay():
         )
 
         tux_svg = r"""
-        <svg xmlns="http://www.w3.org/2000/svg" width="128" viewBox="0 0 128 180">
-            <defs>
-                <radialGradient id="space" cx="64" cy="90" r="90" gradientUnits="userSpaceOnUse">
+    <svg xmlns="http://www.w3.org/2000/svg" width="128" viewBox="0 0 128 180">
+        <defs>
+            <radialGradient id="space" cx="64" cy="90" r="90" gradientUnits="userSpaceOnUse">
                 <stop offset="0" stop-color="#000014" stop-opacity="0.6" />
                 <stop offset="1" stop-color="#000000" stop-opacity="0" />
-                </radialGradient>
-            </defs>
-            <rect width="128" height="180" fill="url(#space)" />
+            </radialGradient>
+        </defs>
+        <rect width="128" height="180" fill="url(#space)" />
 
-            <!-- Stars -->
-            <g fill="white">
-                <circle cx="20" cy="30" r="1"/>
-                <circle cx="110" cy="20" r="1.2"/>
-                <circle cx="90" cy="50" r="0.8"/>
-                <circle cx="30" cy="80" r="0.6"/>
-                <circle cx="70" cy="100" r="0.5"/>
-                <circle cx="50" cy="140" r="0.9"/>
-            </g>
+        <!-- Stars -->
+        <g fill="white">
+            <circle cx="20" cy="30" r="1"/>
+            <circle cx="110" cy="20" r="1.2"/>
+            <circle cx="90" cy="50" r="0.8"/>
+            <circle cx="30" cy="80" r="0.6"/>
+            <circle cx="70" cy="100" r="0.5"/>
+            <circle cx="50" cy="140" r="0.9"/>
+        </g>
 
-            <!-- HUD circle (Elite-style) -->
-            <circle cx="64" cy="140" r="30" stroke="#00ff99" stroke-width="0.8" fill="none" opacity="0.5" />
-            <circle cx="64" cy="140" r="25" stroke="#00ff99" stroke-width="0.5" fill="none" opacity="0.3" />
-            <line x1="34" y1="140" x2="94" y2="140" stroke="#00ff99" stroke-width="0.5" opacity="0.2"/>
-            <line x1="64" y1="110" x2="64" y2="170" stroke="#00ff99" stroke-width="0.5" opacity="0.2"/>
+        <!-- HUD circle (Elite-style) -->
+        <circle cx="64" cy="140" r="30" stroke="#00ff99" stroke-width="0.8" fill="none" opacity="0.5" />
+        <circle cx="64" cy="140" r="25" stroke="#00ff99" stroke-width="0.5" fill="none" opacity="0.3" />
+        <line x1="34" y1="140" x2="94" y2="140" stroke="#00ff99" stroke-width="0.5" opacity="0.2"/>
+        <line x1="64" y1="110" x2="64" y2="170" stroke="#00ff99" stroke-width="0.5" opacity="0.2"/>
 
-            <!-- Tux body -->
-            <ellipse cx="64" cy="90" rx="20" ry="28" fill="black"/>
-            <ellipse cx="64" cy="95" rx="14" ry="22" fill="white"/>
+        <!-- Tux body -->
+        <ellipse cx="64" cy="90" rx="20" ry="28" fill="black"/>
+        <ellipse cx="64" cy="95" rx="14" ry="22" fill="white"/>
 
-            <!-- Eyes -->
-            <circle cx="58" cy="82" r="3.2" fill="white"/>
-            <circle cx="70" cy="82" r="3.2" fill="white"/>
-            <circle cx="58" cy="82" r="1.2" fill="black"/>
-            <circle cx="70" cy="82" r="1.2" fill="black"/>
+        <!-- Eyes -->
+        <circle cx="58" cy="82" r="3.2" fill="white"/>
+        <circle cx="70" cy="82" r="3.2" fill="white"/>
+        <circle cx="58" cy="82" r="1.2" fill="black"/>
+        <circle cx="70" cy="82" r="1.2" fill="black"/>
 
-            <!-- Beak -->
-            <polygon points="61,88 67,88 64,92" fill="orange"/>
+        <!-- Beak -->
+        <polygon points="61,88 67,88 64,92" fill="orange"/>
 
-            <!-- Helmet visor -->
-            <path d="M48,75 q16,-25 32,0" fill="none" stroke="#00ccff" stroke-width="1.5" opacity="0.4"/>
+        <!-- Helmet visor -->
+        <path d="M48,75 q16,-25 32,0" fill="none" stroke="#00ccff" stroke-width="1.5" opacity="0.4"/>
 
-            <!-- Flippers (hands) -->
-            <path d="M45,100 q-6,10 -2,20" fill="black"/>
-            <path d="M83,100 q6,10 2,20" fill="black"/>
+        <!-- Flippers (hands) -->
+        <path d="M45,100 q-6,10 -2,20" fill="black"/>
+        <path d="M83,100 q6,10 2,20" fill="black"/>
 
-            <!-- Controller in flippers -->
-            <rect x="54" y="105" width="20" height="6" rx="2" ry="2" fill="#444"/>
-            <circle cx="58" cy="108" r="1.2" fill="red"/>
-            <circle cx="64" cy="108" r="1.2" fill="green"/>
-            <circle cx="70" cy="108" r="1.2" fill="yellow"/>
+        <!-- Controller in flippers -->
+        <rect x="54" y="105" width="20" height="6" rx="2" ry="2" fill="#444"/>
+        <circle cx="58" cy="108" r="1.2" fill="red"/>
+        <circle cx="64" cy="108" r="1.2" fill="green"/>
+        <circle cx="70" cy="108" r="1.2" fill="yellow"/>
 
-            <!-- Feet -->
-            <path d="M54,116 q-3,10 4,8 t8,0 q4,2 4,-8" fill="orange"/>
-        </svg>
+        <!-- Feet -->
+        <path d="M54,116 q-3,10 4,8 t8,0 q4,2 4,-8" fill="orange"/>
+
+        <!-- Label -->
+        <text x="64" y="175" fill="limegreen" font-size="12" text-anchor="middle">It works</text>
+    </svg>
         """
 
         tmp.send_svg(

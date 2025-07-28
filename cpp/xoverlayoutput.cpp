@@ -131,67 +131,7 @@ class XPrivateAccess
     opaque_ptr<cairo_t> cairo;
 #endif
 
-    struct TDefaultFont
-    {
-        std::string family;
-        opaque_ptr<XftFont> xfont;
-
-        ///@brief Finds file of this font/family and attaches to lunasvg as default.
-        ///@note Default font can (will) be installed once.
-        void InstallDefaultFontIntoLunaSvgOnce() const
-        {
-            static std::once_flag flag;
-            std::call_once(flag, [this]() {
-                using namespace lunasvg;
-
-                const std::string path = this->FindFontPath();
-                if (path.empty())
-                {
-                    std::cerr << "InstallFamilyFileIntoLunaSvg: font file not found for family '"
-                              << family << "'" << std::endl;
-                    return;
-                }
-                if (!lunasvg_add_font_face_from_file("", false, false, path.c_str()))
-                {
-                    std::cerr << "lunasvg_add_font_face_from_data failed for: " << path
-                              << std::endl;
-                }
-                else
-                {
-                    std::cout << "Installed font into lunasvg: " << path << std::endl;
-                }
-            });
-        }
-
-        std::string FindFontPath() const
-        {
-            FcResult result;
-            const auto pattern = AllocateOpaque<FcPattern>(
-              FcPatternDestroy, FcNameParse,
-              reinterpret_cast<const FcChar8 *>(family.c_str())); // NOLINT
-            FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
-            FcDefaultSubstitute(pattern);
-            if (const auto match = AllocateOpaque<FcPattern>(FcPatternDestroy, FcFontMatch, nullptr,
-                                                             pattern, &result))
-            {
-                FcChar8 *file = nullptr;
-                if (FcPatternGetString(match, FC_FILE, 0, &file) == FcResultMatch)
-                {
-                    if (!file)
-                    {
-                        std::cerr << "Could not detect file name for " << family << std::endl;
-                    }
-                    else
-                    {
-                        return reinterpret_cast<char *>(file);
-                    }
-                }
-            }
-            return {};
-        }
-    };
-
-    std::unordered_map<int, TDefaultFont> loadedFonts;
+    std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
 
     template <typename taIdType>
     class TId
@@ -323,7 +263,7 @@ class XPrivateAccess
         {
             loadedFonts[size] = allocFont(size);
         }
-        return loadedFonts.at(size).xfont;
+        return loadedFonts.at(size);
     }
 
     const opaque_ptr<XftFont> &getFont(const std::string &sizeText)
@@ -564,14 +504,6 @@ class XPrivateAccess
     void drawAsSvg(const draw_task::drawitem_t &drawitem)
     {
         assert(drawitem.drawmode == draw_task::drawmode_t::svg);
-
-        if (loadedFonts.empty())
-        {
-            constexpr int kFontSizeRandom = 12;
-            loadedFonts[kFontSizeRandom] = allocFont(kFontSizeRandom);
-        }
-        loadedFonts.begin()->second.InstallDefaultFontIntoLunaSvgOnce();
-        InstallMoreDefaultFontsToLuna();
         InstallNormalFontFileToLuna(drawitem.svg.fontFile);
 
         if (!drawitem.svg.render)
@@ -630,7 +562,7 @@ class XPrivateAccess
         }
 
         auto bitmap = document->renderToBitmap();
-        if (!bitmap.data())
+        if (bitmap.isNull())
         {
             std::cerr << "Failed to render SVG." << std::endl;
             return std::make_tuple(TId<Pixmap>{}, 0, 0);
@@ -663,7 +595,7 @@ class XPrivateAccess
     /// @brief Allocates and caches fonts. It tries to pick font family which is installed in
     /// system, ordered according to my personal preferences.
     /// @note configurable font's families below.
-    TDefaultFont allocFont(const int aFontSize) const
+    opaque_ptr<XftFont> allocFont(const int aFontSize) const
     {
         const auto fontString = [&aFontSize](const std::string &family) {
             std::stringstream ss;
@@ -680,7 +612,6 @@ class XPrivateAccess
         };
 
         opaque_ptr<XftFont> font;
-        std::string family_recorded;
         for (const auto &family : kFontsToTry)
         {
             const auto fontStr = fontString(family);
@@ -690,7 +621,6 @@ class XPrivateAccess
             if (font)
             {
                 std::cout << "Overlay allocated font: " << fontStr << std::endl;
-                family_recorded = family;
                 break;
             }
         }
@@ -700,7 +630,7 @@ class XPrivateAccess
             throw std::runtime_error("Overlay could not load any font.");
         }
 
-        return {std::move(family_recorded), std::move(font)};
+        return font;
     }
 
     void openDisplay()

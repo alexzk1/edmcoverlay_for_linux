@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 FetchContent_Declare(
     lunasvg
     GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
-    GIT_TAG v3.3.0  # Specify the desired branch or tag
+    GIT_TAG v3.4.0  # Specify the desired branch or tag
 )
 FetchContent_MakeAvailable(lunasvg)
 
