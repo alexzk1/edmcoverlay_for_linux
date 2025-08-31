@@ -8,12 +8,9 @@
 #include "strutils.h"
 
 #include <X11/X.h>
-#include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib.h>
-#include <X11/Xos.h>
 #include <X11/Xutil.h>
-#include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
@@ -21,14 +18,13 @@
 
 #include <fontconfig/fontconfig.h>
 #include <lunasvg.h>
-#include <memory.h>
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -98,7 +94,7 @@ class CWindowClass
     std::string window_class;
     opaque_ptr<XClassHint> classHint;
 };
-// Yes, do not include class XPrivateAccess because it is mentioned in the header.
+// Yes, do not include class XPrivateAccess because it is mentioned in the header.S
 } // namespace
 
 /// @brief Real tasks to do on X server, it is private, so can be replaced by Wayland.
@@ -785,7 +781,7 @@ class XPrivateAccess
         const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
         if (ptr)
         {
-            memcpy(&tmp, ptr, sizeof(tmp));
+            std::memcpy(&tmp, ptr, sizeof(tmp));
         }
 
         return tmp;
