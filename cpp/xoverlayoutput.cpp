@@ -512,9 +512,9 @@ class XPrivateAccess
             auto renderer = [this,
                              shared_pixmap = std::make_shared<TPixmapWithDims>(std::move(pixmap)),
                              &drawitem]() {
-                XCopyArea(g_display, std::get<0>(*shared_pixmap), g_win, single_gc, 0, 0,
-                          std::get<1>(*shared_pixmap), std::get<2>(*shared_pixmap), drawitem.x,
-                          drawitem.y);
+                const auto &[pixmap_id, pixmap_width, pixmap_height] = *shared_pixmap;
+                XCopyArea(g_display, pixmap_id, g_win, single_gc, 0, 0, pixmap_width, pixmap_height,
+                          drawitem.x, drawitem.y);
             };
             drawitem.svg.render = std::move(renderer);
         }
