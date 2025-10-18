@@ -5,6 +5,7 @@
 #include "runners.h"
 #include "socket.hh"
 #include "strutils.h"
+#include "svgbuilder.h"
 #include "xoverlayoutput.h"
 
 #include <stdlib.h>
@@ -102,8 +103,11 @@ int main(int argc, char *argv[])
         utility::trim(programName);
     }
 
-    auto &drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), atoi(argv[3]),
-                                       atoi(argv[4]));
+    const auto window_width = atoi(argv[3]);
+    const auto window_height = atoi(argv[4]);
+
+    auto &drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), window_width,
+                                       window_height);
 
     // std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
@@ -118,82 +122,99 @@ int main(int argc, char *argv[])
     draw_task::draw_items_t allDraws;
 
     // FIXME: replace all that by boost:asio
-    serverThread = utility::startNewRunner([&mut, &allDraws](const auto& should_close_ptr) {
-        const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p) {
-            if (p)
-            {
-                // have no idea why it cannot be called from server destructor, but ok
-                // let's do wrapper
-                p->close();
-                delete p;
-            }
-        });
+    serverThread = utility::startNewRunner(
+      [&mut, &allDraws, window_height, window_width](const auto &should_close_ptr) {
+          const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p) {
+              if (p)
+              {
+                  // have no idea why it cannot be called from server destructor, but ok
+                  // let's do wrapper
+                  p->close();
+                  delete p;
+              }
+          });
 
-        while (!(*should_close_ptr))
-        {
-            auto socket = server->accept_autoclose(should_close_ptr);
-            if (!socket)
-            {
-                break;
-            }
+          while (!(*should_close_ptr))
+          {
+              auto socket = server->accept_autoclose(should_close_ptr);
+              if (!socket)
+              {
+                  break;
+              }
 
-            // Let the while() continue and start to listen back ASAP.
-            std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr]() {
-                try
-                {
-                    const std::string request = read_response(*socket);
-                    // std::cout << "Request: " << request << std::endl;
+              // Let the while() continue and start to listen back ASAP.
+              std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr,
+                           window_height, window_width]() {
+                  try
+                  {
+                      const std::string request = read_response(*socket);
+                      // std::cout << "Request: " << request << std::endl;
 
-                    draw_task::draw_items_t incoming_draws;
-                    try
-                    {
-                        incoming_draws = draw_task::parseJsonString(request);
-                    }
-                    catch (std::exception &e)
-                    {
-                        std::cerr << "Json parse failed with message: " << e.what() << std::endl;
-                        incoming_draws.clear();
-                    }
-                    catch (...)
-                    {
-                        std::cerr << "Json parse failed with uknnown reason." << std::endl;
-                        incoming_draws.clear();
-                    }
+                      draw_task::draw_items_t incoming_draws;
+                      try
+                      {
+                          incoming_draws = draw_task::parseJsonString(request);
+                      }
+                      catch (std::exception &e)
+                      {
+                          std::cerr << "Json parse failed with message: " << e.what() << std::endl;
+                          incoming_draws.clear();
+                      }
+                      catch (...)
+                      {
+                          std::cerr << "Json parse failed with uknnown reason." << std::endl;
+                          incoming_draws.clear();
+                      }
 
-                    if (!incoming_draws.empty())
-                    {
-                        const std::lock_guard grd(*mut);
-                        if ((!(*should_close_ptr)))
-                        {
-                            incoming_draws.merge(allDraws);
+                      if (!incoming_draws.empty())
+                      {
+                          // Get rid of all drawables, convert them into SVG
+                          for (auto &element : incoming_draws)
+                          {
+                              std::cout << element.first << "\n";
+                              auto &drawitem = element.second;
+                              if (drawitem.drawmode != draw_task::drawmode_t::svg)
+                              {
+                                  drawitem.svg.svg =
+                                    SvgBuilder(window_width, window_width, {}, drawitem)
+                                      .toSvgString();
+                                  drawitem.drawmode = draw_task::drawmode_t::svg;
+                                  drawitem.text = {};
+                                  drawitem.shape = {};
+                              }
+                          }
 
-                            // Anti-flickering support.
-                            if (!allDraws.empty())
-                            {
-                                for (const auto &old : allDraws)
-                                {
-                                    const auto it = incoming_draws.find(old.first);
-                                    if (it != incoming_draws.end())
-                                    {
-                                        if (it->second.IsEqualStoredData(old.second))
-                                        {
-                                            it->second.SetAlreadyRendered();
-                                        }
-                                    }
-                                }
-                                allDraws.clear();
-                            }
-                            RemoveRenamedDuplicates(incoming_draws);
-                            std::swap(allDraws, incoming_draws);
-                        }
-                    }
-                }
-                catch (...)
-                {
-                }
-            }).detach();
-        };
-    });
+                          const std::lock_guard grd(*mut);
+                          if ((!(*should_close_ptr)))
+                          {
+                              incoming_draws.merge(allDraws);
+                              // Anti-flickering support.
+                              if (!allDraws.empty())
+                              {
+                                  for (const auto &old : allDraws)
+                                  {
+                                      const auto it = incoming_draws.find(old.first);
+                                      if (it != incoming_draws.end())
+                                      {
+                                          if (it->second.IsEqualStoredData(old.second))
+                                          {
+                                              it->second.SetAlreadyRendered();
+                                          }
+                                      }
+                                  }
+                                  allDraws.clear();
+                              }
+                              RemoveRenamedDuplicates(incoming_draws);
+                              std::swap(allDraws, incoming_draws);
+                          }
+                      }
+                  }
+                  catch (...)
+                  {
+                  }
+              }).detach();
+          };
+      });
 
     // Main thread loop. It draws and manages remove of the expired items.
     try
@@ -284,6 +305,7 @@ int main(int argc, char *argv[])
                     if (!skip_render || window_was_hidden)
                     {
                         drawer.cleanFrame();
+                        std::cout << "Drawing items: " << allDraws.size() << std::endl;
                         for (auto &drawitem : allDraws)
                         {
                             drawer.draw(drawitem.second);

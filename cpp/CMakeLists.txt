@@ -50,6 +50,7 @@ set(PROJECT_SOURCES
     xoverlayoutput.cpp xoverlayoutput.h
     json_message.cc json_message.hh
     socket.cc socket.hh
+    svgbuilder.cpp svgbuilder.h
 
     #Common helpers
     json.hpp
