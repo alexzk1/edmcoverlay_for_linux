@@ -4,6 +4,7 @@
 #include "strutils.h"
 
 #include <cassert>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -167,5 +168,6 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     res.shape = {};
     res.svg.svg = svgTextStream.str();
     res.drawmode = draw_task::drawmode_t::svg;
+
     return res;
 }
