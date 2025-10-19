@@ -40,7 +40,7 @@ else
   echo "          Continuing without Cairo..."
 fi
 
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_CAIRO=${WITH_CAIRO}
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_CAIRO=${WITH_CAIRO}
 cmake --build build  --verbose
 
 echo ""

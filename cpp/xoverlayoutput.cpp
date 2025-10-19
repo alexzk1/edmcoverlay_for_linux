@@ -4,6 +4,7 @@
 #include "colors_mgr.h"
 #include "drawables.h"
 #include "luna_default_fonts.h"
+#include "managed_id.hpp"
 #include "opaque_ptr.h"
 #include "strutils.h"
 
@@ -41,6 +42,9 @@
 #endif
 
 namespace {
+
+using TManagedPixmap = TManagedId<Pixmap, None>;
+
 constexpr int kTabSizeInSpaces = 2;
 
 // Events for normal windows
@@ -126,47 +130,8 @@ class XPrivateAccess
     opaque_ptr<cairo_surface_t> cairo_surface;
     opaque_ptr<cairo_t> cairo;
 #endif
-
+    TManagedId<Picture, None> g_windowOpaqueDestination;
     std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
-
-    template <typename taIdType>
-    class TId
-    {
-      public:
-        using TIdType = taIdType;
-        MOVEONLY_ALLOWED(TId);
-        TId() = default;
-
-        TId(taIdType id_, std::function<void(taIdType)> free_) :
-            id_(id_),
-            free_(std::move(free_))
-        {
-        }
-
-        ~TId()
-        {
-            if (id_ != None && free_)
-            {
-                free_(id_);
-            }
-        }
-
-        [[nodiscard]]
-        bool IsInitialized() const
-        {
-            return id_ != None;
-        }
-
-        // NOLINTNEXTLINE
-        operator taIdType() const
-        {
-            return id_;
-        }
-
-      private:
-        taIdType id_{None};
-        std::function<void(taIdType)> free_;
-    };
 
   public:
     ///@brief Allocates RAII style memory.
@@ -187,14 +152,14 @@ class XPrivateAccess
     ///@brief Does not allocate memory, but returns some ID which should be RAII styled.
     template <typename taIdType, typename taDeAllocator, typename taAllocator,
               typename... taAllocArgs>
-    TId<taIdType> AllocateId(taDeAllocator aDeallocate, taAllocator aAllocate,
-                             taAllocArgs &&...aArgs) const
+    TManagedId<taIdType, None> AllocateId(taDeAllocator aDeallocate, taAllocator aAllocate,
+                                          taAllocArgs &&...aArgs) const
     {
         static_assert(std::is_trivial_v<taIdType>, "Only simple ID types are allowed.");
-        return TId<taIdType>{aAllocate(std::forward<taAllocArgs>(aArgs)...),
-                             [aDeallocate, this](taIdType id) {
-                                 aDeallocate(g_display, id);
-                             }};
+        return TManagedId<taIdType, None>{aAllocate(std::forward<taAllocArgs>(aArgs)...),
+                                          [aDeallocate, this](taIdType id) {
+                                              aDeallocate(g_display, id);
+                                          }};
     }
 
     XPrivateAccess() = delete;
@@ -224,6 +189,7 @@ class XPrivateAccess
     {
         loadedFonts.clear();
         colors.reset();
+        g_windowOpaqueDestination.reset();
         single_gc.reset();
         g_display.reset();
 
@@ -260,20 +226,6 @@ class XPrivateAccess
             loadedFonts[size] = allocFont(size);
         }
         return loadedFonts.at(size);
-    }
-
-    const opaque_ptr<XftFont> &getFont(const std::string &sizeText)
-    {
-        // large = normal + kDeltaFontDifference
-        constexpr int kDeltaFontDifference = 4;
-        constexpr int kNormalFontSize = 16;
-
-        // FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
-        // From the other side, existing plugins send fixed distance between strings.
-        // This one looks okish for Canon's.
-
-        return sizeText == "large" ? getFont(kNormalFontSize + kDeltaFontDifference)
-                                   : getFont(kNormalFontSize);
     }
 
     /// @returns true if transparency is avail in system now.
@@ -388,8 +340,7 @@ class XPrivateAccess
     {
         assert(drawitem.drawmode == draw_task::drawmode_t::text);
 
-        const auto &font =
-          drawitem.text.fontSize ? getFont(*drawitem.text.fontSize) : getFont(drawitem.text.size);
+        const auto &font = getFont(drawitem.text.getFinalFontSize());
         drawUtf8StringMultiline(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text,
                                 ETextDecor::NoRectangle);
     }
@@ -468,8 +419,7 @@ class XPrivateAccess
             // Common part with/without cairo.
             if (marker.HasText())
             {
-                const auto font =
-                  vector_font_size > 0 ? getFont(vector_font_size) : getFont("normal");
+                const auto font = getFont(vector_font_size);
                 const auto extents = measureUtf8String(font, {marker.text.at(0)});
 
                 drawUtf8StringMultiline(font, marker.color,
@@ -513,8 +463,22 @@ class XPrivateAccess
                              shared_pixmap = std::make_shared<TPixmapWithDims>(std::move(pixmap)),
                              &drawitem]() {
                 const auto &[pixmap_id, pixmap_width, pixmap_height] = *shared_pixmap;
-                XCopyArea(g_display, pixmap_id, g_win, single_gc, 0, 0, pixmap_width, pixmap_height,
-                          drawitem.x, drawitem.y);
+                XRenderPictFormat *pictFormat = XRenderFindVisualFormat(g_display, g_vinfo.visual);
+                auto srcPict = AllocateId<Picture>(XRenderFreePicture, XRenderCreatePicture,
+                                                   g_display, pixmap_id, pictFormat, 0, nullptr);
+                if (!g_windowOpaqueDestination.IsInitialized())
+                {
+                    g_windowOpaqueDestination =
+                      AllocateId<Picture>(XRenderFreePicture, XRenderCreatePicture, g_display,
+                                          g_win, pictFormat, 0, nullptr);
+                }
+                XRenderComposite(g_display,
+                                 PictOpOver, // обычное “поверх”, учитывает альфу
+                                 srcPict, None, g_windowOpaqueDestination, 0,
+                                 0,          // координаты источника
+                                 0, 0,       // маска
+                                 drawitem.x, // куда на экране
+                                 drawitem.y, pixmap_width, pixmap_height);
             };
             drawitem.svg.render = std::move(renderer);
         }
@@ -528,7 +492,7 @@ class XPrivateAccess
     }
 
   private:
-    using TPixmapWithDims = std::tuple<TId<Pixmap>, int, int>;
+    using TPixmapWithDims = std::tuple<TManagedPixmap, int, int>;
     struct TXInitFreeCaller
     {
         NO_COPYMOVE(TXInitFreeCaller);
@@ -548,7 +512,7 @@ class XPrivateAccess
         if (svg.empty())
         {
             std::cerr << "Empty SVG was provided." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
+            return std::make_tuple(TManagedPixmap{}, 0, 0);
         }
 
         auto document = Document::loadFromData(svg);
@@ -561,18 +525,20 @@ class XPrivateAccess
         if (bitmap.isNull())
         {
             std::cerr << "Failed to render SVG." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
+            return std::make_tuple(TManagedPixmap{}, 0, 0);
         }
 
+        constexpr int kBitnessWithAlpha = 32;
         auto pixmap = AllocateId<Pixmap>(XFreePixmap, XCreatePixmap, g_display, g_win,
-                                         bitmap.width(), bitmap.height(), g_vinfo.depth);
-        auto ximage = AllocateOpaque<XImage>(
-          XMyDestroyImage, XCreateImage, g_display, g_vinfo.visual, g_vinfo.depth, ZPixmap, 0,
-          reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(), 32, 0);
+                                         bitmap.width(), bitmap.height(), kBitnessWithAlpha);
+        auto ximage = AllocateOpaque<XImage>(XMyDestroyImage, XCreateImage, g_display,
+                                             g_vinfo.visual, kBitnessWithAlpha, ZPixmap, 0,
+                                             reinterpret_cast<char *>(bitmap.data()),
+                                             bitmap.width(), bitmap.height(), kBitnessWithAlpha, 0);
         if (!ximage)
         {
             std::cerr << "Failed to create XImage during SVG render." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
+            return std::make_tuple(TManagedPixmap{}, 0, 0);
         }
 
         XPutImage(g_display, pixmap, single_gc, ximage, 0, 0, 0, 0, bitmap.width(),

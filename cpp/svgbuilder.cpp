@@ -1,42 +1,28 @@
 #include "svgbuilder.h"
 
+#include "drawables.h"
 #include "strutils.h"
 
 #include <cassert>
 #include <sstream>
 #include <string>
+#include <utility>
 
-SvgBuilder::SvgBuilder(const int screenWidth, const int screenHeight, const TIndependantFont &font,
-                       const draw_task::drawitem_t &drawTask)
-{
-    using namespace draw_task;
-    begin(screenWidth, screenHeight);
-    if (drawTask.drawmode == drawmode_t::text)
-    {
-        makeSvgTextMultiline(drawTask, font);
-    }
-    end();
-}
-
-std::string SvgBuilder::toSvgString() const
-{
-    return out.str();
-}
-
-void SvgBuilder::begin(int width, int height)
+namespace {
+void beginSvg(std::ostringstream &out, int width, int height)
 {
     out << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
            "width=\""
         << width << "\" height=\"" << height << "\">\n";
 }
 
-void SvgBuilder::end()
+void endSvg(std::ostringstream &out)
 {
     out << "</svg>";
 }
 
-void SvgBuilder::makeSvgTextMultiline(const draw_task::drawitem_t &drawTask,
-                                      const TIndependantFont &font)
+void makeSvgTextMultiline(std::ostringstream &out, const draw_task::drawitem_t &drawTask,
+                          const TIndependantFont &font)
 {
     constexpr int kTabSizeInSpaces = 2;
 
@@ -73,4 +59,33 @@ void SvgBuilder::makeSvgTextMultiline(const draw_task::drawitem_t &drawTask,
         out << ">" << utility::replace_tabs_with_spaces(line, kTabSizeInSpaces) << "</tspan>";
     }
     out << "</text>";
+}
+} // namespace
+
+SvgBuilder::SvgBuilder(const int windowWidth, const int windowHeight, TIndependantFont font,
+                       draw_task::drawitem_t drawTask) :
+    windowWidth(windowWidth),
+    windowHeight(windowHeight),
+    font(std::move(font)),
+    drawTask(std::move(drawTask))
+{
+}
+
+draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
+{
+    draw_task::drawitem_t res = drawTask;
+    std::ostringstream out;
+    if (drawTask.drawmode == draw_task::drawmode_t::text)
+    {
+        beginSvg(out, windowWidth, windowHeight);
+        makeSvgTextMultiline(out, drawTask, font);
+        endSvg(out);
+
+        res.x = 0;
+        res.y = 0;
+        res.text = {};
+        res.svg.svg = out.str();
+    }
+    res.drawmode = draw_task::drawmode_t::svg;
+    return res;
 }

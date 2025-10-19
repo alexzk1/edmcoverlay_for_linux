@@ -18,17 +18,14 @@ struct TIndependantFont
 class SvgBuilder
 {
   public:
-    SvgBuilder(const int screenWidth, const int screenHeight, const TIndependantFont &font,
-               const draw_task::drawitem_t &drawTask);
-    std::string toSvgString() const;
+    SvgBuilder(const int windowWidth, const int windowHeight, TIndependantFont font,
+               draw_task::drawitem_t drawTask);
 
-  protected:
-    void begin(int width, int height);
-    void end();
-
-    /// @brief Makes SVG text multiline.
-    void makeSvgTextMultiline(const draw_task::drawitem_t &drawTask, const TIndependantFont &font);
+    draw_task::drawitem_t BuildSvgTask() const;
 
   private:
-    std::ostringstream out;
+    int windowWidth;
+    int windowHeight;
+    TIndependantFont font;
+    draw_task::drawitem_t drawTask;
 };

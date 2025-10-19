@@ -171,16 +171,12 @@ int main(int argc, char *argv[])
                           // Get rid of all drawables, convert them into SVG
                           for (auto &element : incoming_draws)
                           {
-                              std::cout << element.first << "\n";
-                              auto &drawitem = element.second;
-                              if (drawitem.drawmode != draw_task::drawmode_t::svg)
+                              if (element.second.drawmode != draw_task::drawmode_t::svg)
                               {
-                                  drawitem.svg.svg =
-                                    SvgBuilder(window_width, window_width, {}, drawitem)
-                                      .toSvgString();
-                                  drawitem.drawmode = draw_task::drawmode_t::svg;
-                                  drawitem.text = {};
-                                  drawitem.shape = {};
+                                  auto svgTask = SvgBuilder(window_width, window_width,
+                                                            TIndependantFont{}, element.second)
+                                                   .BuildSvgTask();
+                                  element.second = svgTask;
                               }
                           }
 
@@ -305,7 +301,6 @@ int main(int argc, char *argv[])
                     if (!skip_render || window_was_hidden)
                     {
                         drawer.cleanFrame();
-                        std::cout << "Drawing items: " << allDraws.size() << std::endl;
                         for (auto &drawitem : allDraws)
                         {
                             drawer.draw(drawitem.second);

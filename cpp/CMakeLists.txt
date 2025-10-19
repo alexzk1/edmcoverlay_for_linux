@@ -21,7 +21,7 @@ option(WITH_CAIRO "Build with Cairo support" OFF)
 
 find_package(Freetype REQUIRED)
 find_package(Fontconfig REQUIRED)
-find_package(X11 COMPONENTS Xft Xfixes Xext REQUIRED)
+find_package(X11 COMPONENTS Xft Xfixes Xext Xrender REQUIRED)
 
 if(WITH_CAIRO)
     find_package(PkgConfig REQUIRED)
@@ -61,7 +61,8 @@ set(PROJECT_SOURCES
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES}
-    luna_default_fonts.h)
+    luna_default_fonts.h
+    managed_id.hpp)
 
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -march=native -Wall)
 
@@ -77,6 +78,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
     ${X11_Xfixes_LIB}
     ${X11_Xft_LIB}
     ${X11_Xext_LIB}
+    ${X11_Xrender_LIB}
     ${CAIRO_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${Fontconfig_LIBRARY}

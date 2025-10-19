@@ -67,6 +67,9 @@ inline std::ostream &operator<<(std::ostream &os, drawmode_t val)
 
 struct drawitem_t
 {
+    static constexpr int kDeltaFontDifference = 4;
+    static constexpr int kNormalFontSize = 16;
+
     timestamp_t ttl;
     std::string id;
     std::string command;
@@ -99,8 +102,6 @@ struct drawitem_t
             // FYI: I set those big numbers for my eyes with glasses. Somebody may want lower /
             // bigger. From the other side, existing plugins send fixed distance between strings.
             // This one looks okish for Canon's.
-            constexpr int kDeltaFontDifference = 4;
-            constexpr int kNormalFontSize = 16;
 
             return fontSize.value_or(size == "large" ? kNormalFontSize + kDeltaFontDifference
                                                      : kNormalFontSize);
@@ -124,6 +125,11 @@ struct drawitem_t
             };
 
             return tie(*this) == tie(other);
+        }
+
+        int getFinalFontSize() const
+        {
+            return vector_font_size > 0 ? vector_font_size : kNormalFontSize;
         }
     } shape;
 
@@ -474,7 +480,7 @@ inline bool ForEachVectorPointsPair(const drawitem_t &src, const taLineDrawer &l
 
         if (marker.IsSet())
         {
-            markerDrawer(marker, src.shape.vector_font_size);
+            markerDrawer(marker, src.shape.getFinalFontSize());
         }
 
         if (x1 == UNINIT_COORD)
