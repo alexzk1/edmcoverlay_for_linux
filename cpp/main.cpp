@@ -23,6 +23,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 
 namespace {
 
@@ -173,9 +174,10 @@ int main(int argc, char *argv[])
                           {
                               if (element.second.drawmode != draw_task::drawmode_t::svg)
                               {
-                                  auto svgTask = SvgBuilder(window_width, window_width,
-                                                            TIndependantFont{}, element.second)
-                                                   .BuildSvgTask();
+                                  auto svgTask =
+                                    SvgBuilder(window_width, window_width, TIndependantFont{},
+                                               std::move(element.second))
+                                      .BuildSvgTask();
                                   element.second = svgTask;
                               }
                           }
