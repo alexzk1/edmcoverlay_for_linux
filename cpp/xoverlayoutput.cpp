@@ -380,45 +380,56 @@ class XPrivateAccess
 
     TPixmapWithDims MakeXPixmap(const std::string &svg, const std::string &css) const
     {
-        using namespace lunasvg;
-        if (svg.empty())
+        try
         {
-            std::cerr << "Empty SVG was provided." << std::endl;
-            return std::make_tuple(TManagedPixmap{}, 0, 0);
-        }
+            using namespace lunasvg;
+            if (svg.empty())
+            {
+                throw std::runtime_error("Empty SVG was provided.");
+            }
 
-        auto document = Document::loadFromData(svg);
-        if (!css.empty())
+            auto document = Document::loadFromData(svg);
+            if (!css.empty())
+            {
+                document->applyStyleSheet(css);
+            }
+
+            auto bitmap = document->renderToBitmap();
+            if (bitmap.isNull())
+            {
+                std::cerr << "Failed to render SVG." << std::endl;
+                return std::make_tuple(TManagedPixmap{}, 0, 0);
+            }
+
+            constexpr int kBitnessWithAlpha = 32;
+            auto pixmap = AllocateId<Pixmap>(XFreePixmap, XCreatePixmap, g_display, g_win,
+                                             bitmap.width(), bitmap.height(), kBitnessWithAlpha);
+            auto ximage = AllocateOpaque<XImage>(
+              XMyDestroyImage, XCreateImage, g_display, g_vinfo.visual, kBitnessWithAlpha, ZPixmap,
+              0, reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(),
+              kBitnessWithAlpha, 0);
+            if (!ximage)
+            {
+                std::cerr << "Failed to create XImage during SVG render." << std::endl;
+                return std::make_tuple(TManagedPixmap{}, 0, 0);
+            }
+
+            XPutImage(g_display, pixmap, single_gc, ximage, 0, 0, 0, 0, bitmap.width(),
+                      bitmap.height());
+            // Important:stopping freeing lunasvg memory.
+            ximage->data = nullptr;
+
+            return std::make_tuple(std::move(pixmap), bitmap.width(), bitmap.height());
+        }
+        catch (std::exception &e)
         {
-            document->applyStyleSheet(css);
+            std::cerr << e.what() << "\n" << svg << std::endl;
         }
-
-        auto bitmap = document->renderToBitmap();
-        if (bitmap.isNull())
+        catch (...)
         {
-            std::cerr << "Failed to render SVG." << std::endl;
-            return std::make_tuple(TManagedPixmap{}, 0, 0);
+            std::cerr << "Something unknown happened while rendering SVG:\n" << svg << std::endl;
         }
-
-        constexpr int kBitnessWithAlpha = 32;
-        auto pixmap = AllocateId<Pixmap>(XFreePixmap, XCreatePixmap, g_display, g_win,
-                                         bitmap.width(), bitmap.height(), kBitnessWithAlpha);
-        auto ximage = AllocateOpaque<XImage>(XMyDestroyImage, XCreateImage, g_display,
-                                             g_vinfo.visual, kBitnessWithAlpha, ZPixmap, 0,
-                                             reinterpret_cast<char *>(bitmap.data()),
-                                             bitmap.width(), bitmap.height(), kBitnessWithAlpha, 0);
-        if (!ximage)
-        {
-            std::cerr << "Failed to create XImage during SVG render." << std::endl;
-            return std::make_tuple(TManagedPixmap{}, 0, 0);
-        }
-
-        XPutImage(g_display, pixmap, single_gc, ximage, 0, 0, 0, 0, bitmap.width(),
-                  bitmap.height());
-        // Important:stopping freeing lunasvg memory.
-        ximage->data = nullptr;
-
-        return std::make_tuple(std::move(pixmap), bitmap.width(), bitmap.height());
+        return TPixmapWithDims{TManagedPixmap{}, 0, 0};
     }
 
     opaque_ptr<_XGC> allocGlobGC() const

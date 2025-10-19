@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
                         // Get rid of all drawables, convert them into SVG.
                         for (auto &element : incoming_draws)
                         {
-                            auto svgTask = SvgBuilder(window_width, window_width,
+                            auto svgTask = SvgBuilder(window_width, window_height,
                                                       TIndependantFont{}, std::move(element.second))
                                              .BuildSvgTask();
                             element.second = std::move(svgTask);

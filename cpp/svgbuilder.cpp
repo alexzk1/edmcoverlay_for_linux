@@ -64,44 +64,43 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
 void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask,
                   const TIndependantFont &font)
 {
-    static constexpr int kStrokeWidth = 1;
-    static constexpr int kMarkerHalfSize = 4;
-    static constexpr int kTextOffsetX = 8;
-    static constexpr int kTextOffsetY = 4;
-
     assert(drawTask.drawmode == draw_task::drawmode_t::shape);
 
-    const auto drawLine = [&](int x1, int y1, int x2, int y2) {
+    static constexpr int kStrokeWidth = 1;
+    static constexpr int kMarkerHalfSize = 4;
+    static constexpr int kTextOffsetX = 1;
+    static constexpr int kTextOffsetY = 0;
+
+    const auto drawLineWithColor = [&](int x1, int y1, int x2, int y2, const std::string &color) {
         svgOutStream << "<line "
                      << "x1='" << x1 << "' "
                      << "y1='" << y1 << "' "
                      << "x2='" << x2 << "' "
                      << "y2='" << y2 << "' "
-                     << "stroke='" << drawTask.color << "' "
-                     << "stroke-width='" << kStrokeWidth << "' "
-                     << "/>\n";
+                     << "stroke='" << color << "' "
+                     << "stroke-width='" << kStrokeWidth << "'/>";
+    };
+
+    const auto drawLine = [&](int x1, int y1, int x2, int y2) {
+        drawLineWithColor(x1, y1, x2, y2, drawTask.color);
     };
 
     const auto drawMarker = [&](const draw_task::TMarkerInVectorInShape &marker,
                                 int vector_font_size) {
         if (marker.IsCircle())
         {
-            svgOutStream << "<circle cx=\"" << marker.x << "\" cy=\"" << marker.y << "\" r=\""
-                         << kMarkerHalfSize << "\" fill=\"none\""
-                         << " stroke=\"" << drawTask.color << "\""
-                         << " stroke-width=\"" << kStrokeWidth << "\""
+            svgOutStream << "<circle cx='" << marker.x << "' cy='" << marker.y << "' r='"
+                         << kMarkerHalfSize << "' fill='none'"
+                         << " stroke='" << marker.color << "'"
+                         << " stroke-width='" << kStrokeWidth << "'"
                          << " />";
         }
-        else if (marker.IsCross())
+        if (marker.IsCross())
         {
-            svgOutStream << "<line x1=\"" << marker.x - kMarkerHalfSize << "\" y1=\""
-                         << marker.y - kMarkerHalfSize << "\" x2=\"" << marker.x + kMarkerHalfSize
-                         << "\" y2=\"" << marker.y + kMarkerHalfSize << "\" stroke=\""
-                         << drawTask.color << "\" stroke-width=\"" << kStrokeWidth << "\" />"
-                         << "<line x1=\"" << marker.x - kMarkerHalfSize << "\" y1=\""
-                         << marker.y + kMarkerHalfSize << "\" x2=\"" << marker.x + kMarkerHalfSize
-                         << "\" y2=\"" << marker.y - kMarkerHalfSize << "\" stroke=\""
-                         << drawTask.color << "\" stroke-width=\"" << kStrokeWidth << "\" />";
+            drawLineWithColor(marker.x - kMarkerHalfSize, marker.y - kMarkerHalfSize,
+                              marker.x + kMarkerHalfSize, marker.y + kMarkerHalfSize, marker.color);
+            drawLineWithColor(marker.x - kMarkerHalfSize, marker.y + kMarkerHalfSize,
+                              marker.x + kMarkerHalfSize, marker.y - kMarkerHalfSize, marker.color);
         }
 
         if (marker.HasText())
@@ -110,6 +109,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
             textTask.drawmode = draw_task::drawmode_t::text;
             textTask.x = marker.x + kMarkerHalfSize + kTextOffsetX;
             textTask.y = marker.y - kTextOffsetY;
+            textTask.color = marker.color;
             textTask.text.fontSize = vector_font_size;
             textTask.text.text = marker.text;
             makeSvgTextMultiline(svgOutStream, textTask, font);
