@@ -3,7 +3,9 @@
 #include "drawables.h"
 #include "strutils.h"
 
+#include <algorithm>
 #include <cassert>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -11,20 +13,11 @@
 #include <utility>
 
 namespace {
-
 constexpr int kTabSizeInSpaces = 2;
-
-void beginSvg(std::ostringstream &out, int width, int height)
-{
-    out << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-           "width=\""
-        << width << "\" height=\"" << height << "\">\n";
-}
-
-void endSvg(std::ostringstream &out)
-{
-    out << "</svg>";
-}
+constexpr int kMarkerHalfSize = 4;
+constexpr int kStrokeWidth = 1;
+constexpr int kTextOffsetX = 1;
+constexpr int kTextOffsetY = 0;
 
 void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask,
                           const TIndependantFont &font)
@@ -34,7 +27,7 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
 
     svgOutStream << "<text"
                  << " x='" << drawTask.x << "'"
-                 << " y='" << drawTask.y << "'"
+                 << " y='" << drawTask.y + drawTask.text.getFinalFontSize() << "'"
                  << " font-family='" << font.fontFamily << "'"
                  << " font-size='" << drawTask.text.getFinalFontSize() << "'"
                  << " fill='" << drawTask.color << "'"
@@ -53,7 +46,7 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
         }
         else
         {
-            svgOutStream << " dy='1.2em'";
+            svgOutStream << " dy='1.05em'";
         }
         svgOutStream << ">" << utility::replace_tabs_with_spaces(line, kTabSizeInSpaces)
                      << "</tspan>";
@@ -65,12 +58,6 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
                   const TIndependantFont &font)
 {
     assert(drawTask.drawmode == draw_task::drawmode_t::shape);
-
-    static constexpr int kStrokeWidth = 1;
-    static constexpr int kMarkerHalfSize = 4;
-    static constexpr int kTextOffsetX = 1;
-    static constexpr int kTextOffsetY = 0;
-
     const auto drawLineWithColor = [&](int x1, int y1, int x2, int y2, const std::string &color) {
         svgOutStream << "<line "
                      << "x1='" << x1 << "' "
@@ -140,9 +127,46 @@ SvgBuilder::SvgBuilder(const int windowWidth, const int windowHeight, TIndependa
 draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
 {
     std::ostringstream svgTextStream;
+    int minX = std::numeric_limits<int>::max();
+    int minY = std::numeric_limits<int>::max();
+    if (drawTask.isShapeVector())
+    {
+        int maxX = std::numeric_limits<int>::min();
+        int maxY = std::numeric_limits<int>::min();
 
-    // Shapes and texts are relative to window and svg is sized as whole window.
-    beginSvg(svgTextStream, windowWidth, windowHeight);
+        for (const auto &node_ : drawTask.shape.vect.items())
+        {
+            const auto &val = node_.value();
+            const int x = val["x"].get<int>();
+            const int y = val["y"].get<int>();
+
+            minX = std::min(minX, x);
+            minY = std::min(minY, y);
+            maxX = std::max(maxX, x);
+            maxY = std::max(maxY, y);
+        }
+
+        auto width = maxX - minX;
+        auto height = maxY - minY;
+
+        if (drawTask.shape.vect.size() == 1)
+        {
+            height = 2 * kMarkerHalfSize + 1 + drawTask.shape.getFinalFontSize() + kTextOffsetY;
+            width = windowWidth / 4;
+            minX -= kMarkerHalfSize + 1;
+            minY -= kMarkerHalfSize + 1;
+        }
+        svgTextStream << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" << width
+                      << "\" height=\"" << height << "\" overflow='visible' >";
+
+        svgTextStream << "<g transform='translate(" << -minX << "," << -minY << ")'>";
+    }
+    else
+    {
+        svgTextStream << "<svg xmlns=\"http://www.w3.org/2000/svg\" overflow='visible' >";
+        svgTextStream << "<g transform='translate(" << -drawTask.x << "," << -drawTask.y << ")'>";
+    }
+
     switch (drawTask.drawmode)
     {
         case draw_task::drawmode_t::text:
@@ -158,12 +182,14 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
         default:
             throw std::runtime_error("Unhandled in code switch case.");
     }
-    endSvg(svgTextStream);
+    svgTextStream << "</g></svg>";
 
     draw_task::drawitem_t res = drawTask;
-    // We do not need to move new generated SVG itself, as it covers whole window.
-    res.x = 0;
-    res.y = 0;
+    if (drawTask.isShapeVector())
+    {
+        res.x = minX;
+        res.y = minY;
+    }
     res.text = {};
     res.shape = {};
     res.svg.svg = svgTextStream.str();

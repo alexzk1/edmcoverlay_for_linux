@@ -157,7 +157,7 @@ struct drawitem_t
     bool already_rendered{false};
 
     [[nodiscard]]
-    bool IsEqualStoredData(const drawitem_t &other) const
+    bool isEqualStoredData(const drawitem_t &other) const
     {
         static const auto tie = [](const drawitem_t &item) {
             return std::tie(item.drawmode, item.color, item.text, item.shape, item.svg, item.x,
@@ -178,9 +178,15 @@ struct drawitem_t
         return !command.empty();
     }
 
-    void SetAlreadyRendered()
+    void setAlreadyRendered()
     {
         already_rendered = true;
+    }
+
+    [[nodiscard]]
+    bool isShapeVector() const
+    {
+        return drawmode == draw_task::drawmode_t::shape && shape.shape == "vect";
     }
 };
 
@@ -448,7 +454,7 @@ template <typename taLineDrawer, typename taMarkerDrawer>
 inline bool ForEachVectorPointsPair(const drawitem_t &src, const taLineDrawer &lineDrawer,
                                     const taMarkerDrawer &markerDrawer)
 {
-    if (!(src.drawmode == draw_task::drawmode_t::shape && src.shape.shape == "vect"))
+    if (!src.isShapeVector())
     {
         return false;
     }

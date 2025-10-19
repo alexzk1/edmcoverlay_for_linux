@@ -43,12 +43,12 @@ void sighandler(int signum)
     }
 }
 
-void RemoveRenamedDuplicates(draw_task::draw_items_t &src)
+void removeRenamedDuplicates(draw_task::draw_items_t &src)
 {
     for (auto iter = src.begin(); iter != std::prev(src.end());)
     {
         const auto dup = std::find_if(std::next(iter), src.end(), [&iter](const auto &item) {
-            return item.second.IsEqualStoredData(iter->second);
+            return item.second.isEqualStoredData(iter->second);
         });
 
         if (dup == src.end())
@@ -190,15 +190,15 @@ int main(int argc, char *argv[])
                                     const auto it = incoming_draws.find(old.first);
                                     if (it != incoming_draws.end())
                                     {
-                                        if (it->second.IsEqualStoredData(old.second))
+                                        if (it->second.isEqualStoredData(old.second))
                                         {
-                                            it->second.SetAlreadyRendered();
+                                            it->second.setAlreadyRendered();
                                         }
                                     }
                                 }
                                 allDraws.clear();
                             }
-                            RemoveRenamedDuplicates(incoming_draws);
+                            removeRenamedDuplicates(incoming_draws);
                             std::swap(allDraws, incoming_draws);
                         }
                     }
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
                         for (auto &drawitem : allDraws)
                         {
                             drawer.draw(drawitem.second);
-                            drawitem.second.SetAlreadyRendered();
+                            drawitem.second.setAlreadyRendered();
                         }
                         drawer.flushFrame();
                     }
