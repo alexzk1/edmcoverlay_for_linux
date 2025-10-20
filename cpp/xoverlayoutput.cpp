@@ -34,8 +34,6 @@ namespace {
 
 using TManagedPixmap = TManagedId<Pixmap, None>;
 
-constexpr int kTabSizeInSpaces = 2;
-
 // Events for normal windows
 // NOLINTNEXTLINE
 constexpr long BASIC_EVENT_MASK = StructureNotifyMask | ExposureMask | PropertyChangeMask
@@ -87,7 +85,7 @@ class CWindowClass
     std::string window_class;
     opaque_ptr<XClassHint> classHint;
 };
-// Yes, do not include class XPrivateAccess because it is mentioned in the header.S
+// Yes, do not include class XPrivateAccess because it is mentioned in the header.
 } // namespace
 
 /// @brief Real tasks to do on X server, it is private, so can be replaced by Wayland.
@@ -164,7 +162,7 @@ class XPrivateAccess
         openDisplay();
         createShapedWindow();
 
-        single_gc = allocGlobGC();
+        single_gc = Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
         colors = std::make_shared<MyXOverlayColorMap>(g_display, getAttributes());
     }
 
@@ -338,13 +336,9 @@ class XPrivateAccess
         return TPixmapWithDims{TManagedPixmap{}, 0, 0};
     }
 
-    opaque_ptr<_XGC> allocGlobGC() const
-    {
-        return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
-    }
-
     void openDisplay()
     {
+        // Member method Allocate() uses this g_display, so we do it direct here.
         g_display = std::shared_ptr<Display>(XOpenDisplay(nullptr), [](Display *p) {
             if (p)
             {
@@ -395,8 +389,6 @@ class XPrivateAccess
         attr.override_redirect = 1; // OpenGL > 0
         attr.colormap = XCreateColormap(g_display, g_root, g_vinfo.visual, AllocNone);
 
-        // unsigned long mask =
-        // CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
         // NOLINTNEXTLINE
         const unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask
                                    | CWWinGravity | CWBitGravity | CWSaveUnder | CWDontPropagate
@@ -408,10 +400,6 @@ class XPrivateAccess
         window_class.Set(g_display, g_win);
         std::cout << "WMID: " << g_win << std::endl;
 
-        /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char
-         * *)myshape_bits, myshape_width, myshape_height); */
-
-        // XShapeCombineMask(g_display, g_win, ShapeBounding, 900, 500, g_bitmap, ShapeSet);
         XShapeCombineMask(g_display, g_win, ShapeInput, 0, 0, None, ShapeSet);
 
         // We want shape-changed event too
@@ -422,7 +410,7 @@ class XPrivateAccess
         wattr.override_redirect = 1;
         XChangeWindowAttributes(g_display, g_win, CWOverrideRedirect, &wattr);
 
-        // pass through input
+        // Pass through input.
         const XserverRegion region = XFixesCreateRegion(g_display, nullptr, 0);
         // XFixesSetWindowShapeRegion (g_display, w, ShapeBounding, 0, 0, 0);
         XFixesSetWindowShapeRegion(g_display, g_win, ShapeInput, 0, 0, region);
@@ -553,7 +541,6 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 std::string XOverlayOutput::getFocusedWindowBinaryPath() const
 {
     const auto pid = xserv->getFocusedWindowPid();
-    // std::cout << "Focused window: " << pid << std::endl;
     if (0 == pid)
     {
         return {};
