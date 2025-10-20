@@ -13,6 +13,16 @@
 #include <utility>
 
 namespace {
+/*
+ * The idea behind this is next: we convert all historical commands used on Windows (like draw text)
+ * into SVG, and than we have only SVG renderer implemented.
+ *
+ * All incoming coordinates are in screen-space system. However, we cannot render full screen
+ * size SVG for each text symbol changed because it is too slow.
+ * So we want to translate incoming messages into "local" coordinate system, render smaller SVG,
+ * than display that SVG shifted back to screen coordinates.
+ */
+
 constexpr int kTabSizeInSpaces = 2;
 constexpr int kMarkerHalfSize = 4;
 constexpr int kStrokeWidth = 1;
