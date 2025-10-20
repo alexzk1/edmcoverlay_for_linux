@@ -4,7 +4,6 @@
 #include "opaque_ptr.h"
 
 #include <X11/X.h>
-#include <X11/Xft/Xft.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrender.h>
 
@@ -13,17 +12,16 @@
 #include <cstdio>
 #include <limits>
 #include <map>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
 
-/// @brief Allocates and caches colors as XColor and XftColor in 2 separated lists.
+/// @brief Allocates and caches colors as XColor.
 /// It understands some names like "red" and hex codes.
 /// @details This class is used to manage colors for an overlay in a graphical application.
-/// It uses the X11 library to allocate and cache colors as both XColor and XftColor objects.
-/// The class provides methods to retrieve colors by name, either as an XColor or as an XftColor.
+/// It uses the X11 library to allocate and cache colors XColor objects.
+/// The class provides methods to retrieve colors by name as an XColor.
 /// @note The class assumes that the display and window attributes are valid for the lifetime of the
 /// object.
 class MyXOverlayColorMap
@@ -36,7 +34,6 @@ class MyXOverlayColorMap
     const XWindowAttributes g_attrs;
 
     std::map<std::string, XColor> known_xcolors;
-    std::map<std::string, opaque_ptr<XftColor>> known_fontcolors;
 
   public:
     /// @brief A simple struct to represent an RGBA color.
@@ -102,7 +99,6 @@ class MyXOverlayColorMap
     NO_COPYMOVE(MyXOverlayColorMap);
     ~MyXOverlayColorMap()
     {
-        known_fontcolors.clear();
         known_xcolors.clear();
     }
     MyXOverlayColorMap() = delete;
@@ -135,25 +131,6 @@ class MyXOverlayColorMap
         // otherwise request creation and return
         known_xcolors[name] = colorFromName(name);
         return known_xcolors[name];
-    }
-
-    /// @brief Retrieves a color by name or hexcode as an XftColor.
-    opaque_ptr<XftColor> getFontColor(std::string name)
-    {
-        std::transform(name.begin(), name.end(), name.begin(), [](auto c) {
-            return std::tolower(c);
-        });
-
-        // if we know that color just return it
-        const auto it = known_fontcolors.find(name);
-        if (it != known_fontcolors.end())
-        {
-            return it->second;
-        }
-
-        // otherwise request creation and return
-        known_fontcolors[name] = createFontColor(name);
-        return known_fontcolors[name];
     }
 
     /// @brief This function is used to decode a color name or hexcode into an RGB(A) color.
@@ -235,27 +212,5 @@ class MyXOverlayColorMap
 
         color.pixel = (color.pixel & 0x00ffffffu) | (aRGBA.alpha << 24);
         return color;
-    }
-
-    /// @note This function allocates a new XftColor and sets its fields based on the given color
-    /// name or hex value.
-    [[nodiscard]]
-    opaque_ptr<XftColor> createFontColor(const std::string &name) const
-    {
-        const auto renderColor = decodeRGBAColor(name).toRenderColor();
-
-        auto onStack = allocCType<XftColor>();
-        if (!XftColorAllocValue(g_display, g_attrs.visual, g_attrs.colormap, &renderColor,
-                                &onStack))
-        {
-            throw std::runtime_error("Failed to allocate font color!");
-        }
-        return std::shared_ptr<XftColor>(new XftColor(onStack), [this](auto ptr) {
-            if (ptr)
-            {
-                XftColorFree(g_display, g_attrs.visual, g_attrs.colormap, ptr);
-                delete ptr;
-            }
-        });
     }
 };

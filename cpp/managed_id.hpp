@@ -28,7 +28,7 @@ class TManagedId
     [[nodiscard]]
     bool IsInitialized() const
     {
-        return id_ != None;
+        return id_ != taNone;
     }
 
     // NOLINTNEXTLINE
