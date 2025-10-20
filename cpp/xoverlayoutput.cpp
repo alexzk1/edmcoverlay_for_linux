@@ -237,7 +237,7 @@ class XPrivateAccess
 
         if (!drawitem.svg.render)
         {
-            auto pixmap = MakeXPixmapFromSvgText(drawitem.svg.svg, drawitem.svg.css);
+            auto pixmap = RenderXPixmapFromSvgText(drawitem.svg.svg, drawitem.svg.css);
             if (!std::get<0>(pixmap).IsInitialized())
             {
                 return;
@@ -284,7 +284,7 @@ class XPrivateAccess
         }
     };
 
-    TPixmapWithDims MakeXPixmapFromSvgText(const std::string &svg, const std::string &css) const
+    TPixmapWithDims RenderXPixmapFromSvgText(const std::string &svg, const std::string &css) const
     {
         try
         {
