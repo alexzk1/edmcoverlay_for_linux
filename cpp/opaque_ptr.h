@@ -72,7 +72,7 @@ class opaque_ptr
     template <typename Type>
     explicit operator Type() const
     {
-        static_assert(std::is_pointer<Type>::value, "Expecting cast to pointer.");
+        static_assert(std::is_pointer_v<Type>, "Expecting cast to pointer.");
         // NOLINTNEXTLINE
         return reinterpret_cast<Type>(ptr.get());
     }

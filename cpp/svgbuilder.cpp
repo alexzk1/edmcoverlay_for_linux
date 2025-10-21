@@ -141,6 +141,9 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     int minY = std::numeric_limits<int>::max();
     if (drawTask.isShapeVector())
     {
+        // Vectors have invalid drawTask.x/y set, instead each point is absolute screen coordinate.
+        // We need to find bounding corner of it so corner becomes 0;0 of SVG.
+        // Than we change task.x/y to this corner, so screen output will use to position SVG.
         int maxX = std::numeric_limits<int>::min();
         int maxY = std::numeric_limits<int>::min();
 
@@ -173,6 +176,7 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     }
     else
     {
+        // This is not a vector task, so we had valid drawTask.x/y as corner for 0;0 of SVG.
         svgTextStream << "<svg xmlns=\"http://www.w3.org/2000/svg\" overflow='visible' >";
         svgTextStream << "<g transform='translate(" << -drawTask.x << "," << -drawTask.y << ")'>";
     }
@@ -186,8 +190,10 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
             makeSvgShape(svgTextStream, drawTask, font);
             break;
         case draw_task::drawmode_t::idk:
+            // If we got unknown drawing task, just return it as-is, it could be the command.
             [[fallthrough]];
         case draw_task::drawmode_t::svg:
+            // If task is direct SVG it does not need to be converted.
             return drawTask;
         default:
             throw std::runtime_error("Unhandled in code switch case.");

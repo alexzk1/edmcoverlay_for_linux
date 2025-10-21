@@ -13,6 +13,7 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/extensions/Xrender.h>
+#include <X11/extensions/render.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/shapeconst.h>
 
@@ -21,6 +22,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -200,6 +202,7 @@ class XPrivateAccess
     }
 
     /// @returns true if transparency is avail in system now.
+    [[nodiscard]]
     bool isTransparencyAvail() const
     {
         if (!g_display)
@@ -219,6 +222,7 @@ class XPrivateAccess
 
     ///@returns PID of the current process with window which has focus.
     ///@note X11 does not support 64 bit pids.
+    [[nodiscard]]
     std::uint32_t getFocusedWindowPid() const
     {
         Window focused = 0;
@@ -282,6 +286,7 @@ class XPrivateAccess
         }
     };
 
+    [[nodiscard]]
     TPixmapWithDims RenderXPixmapFromSvgText(const std::string &svg, const std::string &css) const
     {
         try
@@ -310,7 +315,7 @@ class XPrivateAccess
                                              bitmap.width(), bitmap.height(), kBitnessWithAlpha);
             auto ximage = AllocateOpaque<XImage>(
               XMyDestroyImage, XCreateImage, g_display, g_vinfo.visual, kBitnessWithAlpha, ZPixmap,
-              0, reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(),
+              0, reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(), // NOLINT
               kBitnessWithAlpha, 0);
             if (!ximage)
             {
@@ -420,6 +425,7 @@ class XPrivateAccess
         XMapWindow(g_display, g_win);
     }
 
+    [[nodiscard]]
     XWindowAttributes getAttributes() const
     {
         auto attrs = allocCType<XWindowAttributes>();

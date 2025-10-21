@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include <optional>
-#include <sstream>
+#include <ostream>
 #include <string>
 
 /// @brief Describes font to use by SVG renderer later.
@@ -31,6 +31,7 @@ class SvgBuilder
     SvgBuilder(const int windowWidth, const int windowHeight, TIndependantFont font,
                draw_task::drawitem_t drawTask);
 
+    /// @brief Builds final
     draw_task::drawitem_t BuildSvgTask() const;
 
   private:
