@@ -6,7 +6,8 @@ PORT="5010"
 messages=(
 '{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 100, "y": 100, "ttl": 8}'
 '{"id": "test2", "text": "You are low on fuel!!", "font_size": 50, "color": "red", "x": 150, "y": 130, "ttl": 8}'
-'{"id": "test3", "text": "You are low on fuel!!!", "size": "normal", "font_size": 70, "color": "red", "x": 200, "y": 140, "ttl": 8}'
+'{"id": "test3", "text": "You are low on fuel!!!", "size": "normal", "font_size": 70, "color": "blue", "x": 400, "y": 140, "ttl": 8}'
+'{"id": "test4", "text": "You are low on fuel!!\n\tNew line tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 8}'
 )
 
 for msg in "${messages[@]}"; do

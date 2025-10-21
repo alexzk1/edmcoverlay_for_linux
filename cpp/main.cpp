@@ -5,6 +5,7 @@
 #include "runners.h"
 #include "socket.hh"
 #include "strutils.h"
+#include "svgbuilder.h"
 #include "xoverlayoutput.h"
 
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 
 namespace {
 
@@ -41,12 +43,12 @@ void sighandler(int signum)
     }
 }
 
-void RemoveRenamedDuplicates(draw_task::draw_items_t &src)
+void removeRenamedDuplicates(draw_task::draw_items_t &src)
 {
     for (auto iter = src.begin(); iter != std::prev(src.end());)
     {
         const auto dup = std::find_if(std::next(iter), src.end(), [&iter](const auto &item) {
-            return item.second.IsEqualStoredData(iter->second);
+            return item.second.isEqualStoredData(iter->second);
         });
 
         if (dup == src.end())
@@ -102,8 +104,11 @@ int main(int argc, char *argv[])
         utility::trim(programName);
     }
 
-    auto &drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), atoi(argv[3]),
-                                       atoi(argv[4]));
+    const auto window_width = atoi(argv[3]);
+    const auto window_height = atoi(argv[4]);
+
+    auto &drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), window_width,
+                                       window_height);
 
     // std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
@@ -118,7 +123,8 @@ int main(int argc, char *argv[])
     draw_task::draw_items_t allDraws;
 
     // FIXME: replace all that by boost:asio
-    serverThread = utility::startNewRunner([&mut, &allDraws](const auto& should_close_ptr) {
+    serverThread = utility::startNewRunner([&mut, &allDraws, window_height,
+                                            window_width](const auto &should_close_ptr) {
         const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p) {
             if (p)
             {
@@ -138,7 +144,8 @@ int main(int argc, char *argv[])
             }
 
             // Let the while() continue and start to listen back ASAP.
-            std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr]() {
+            std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr,
+                         window_height, window_width]() {
                 try
                 {
                     const std::string request = read_response(*socket);
@@ -162,11 +169,19 @@ int main(int argc, char *argv[])
 
                     if (!incoming_draws.empty())
                     {
+                        // Get rid of all drawables, convert them into SVG.
+                        for (auto &element : incoming_draws)
+                        {
+                            auto svgTask = SvgBuilder(window_width, window_height,
+                                                      TIndependantFont{}, std::move(element.second))
+                                             .BuildSvgTask();
+                            element.second = std::move(svgTask);
+                        }
+
                         const std::lock_guard grd(*mut);
                         if ((!(*should_close_ptr)))
                         {
                             incoming_draws.merge(allDraws);
-
                             // Anti-flickering support.
                             if (!allDraws.empty())
                             {
@@ -175,15 +190,15 @@ int main(int argc, char *argv[])
                                     const auto it = incoming_draws.find(old.first);
                                     if (it != incoming_draws.end())
                                     {
-                                        if (it->second.IsEqualStoredData(old.second))
+                                        if (it->second.isEqualStoredData(old.second))
                                         {
-                                            it->second.SetAlreadyRendered();
+                                            it->second.setAlreadyRendered();
                                         }
                                     }
                                 }
                                 allDraws.clear();
                             }
-                            RemoveRenamedDuplicates(incoming_draws);
+                            removeRenamedDuplicates(incoming_draws);
                             std::swap(allDraws, incoming_draws);
                         }
                     }
@@ -287,7 +302,7 @@ int main(int argc, char *argv[])
                         for (auto &drawitem : allDraws)
                         {
                             drawer.draw(drawitem.second);
-                            drawitem.second.SetAlreadyRendered();
+                            drawitem.second.setAlreadyRendered();
                         }
                         drawer.flushFrame();
                     }

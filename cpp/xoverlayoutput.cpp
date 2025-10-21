@@ -1,47 +1,40 @@
 #include "xoverlayoutput.h"
 
 #include "cm_ctors.h"
-#include "colors_mgr.h"
 #include "drawables.h"
 #include "luna_default_fonts.h"
+#include "managed_id.hpp"
 #include "opaque_ptr.h"
-#include "strutils.h"
+#include "svgbuilder.h"
+#include "x11_colors_mgr.h"
 
 #include <X11/X.h>
-#include <X11/Xft/Xft.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/extensions/Xrender.h>
+#include <X11/extensions/render.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/shapeconst.h>
 
-#include <fontconfig/fontconfig.h>
 #include <lunasvg.h>
 
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
-#include <vector>
-
-#ifdef WITH_CAIRO
-    #include <cairo.h>
-
-    #include <cairo-xlib.h>
-#endif
 
 namespace {
-constexpr int kTabSizeInSpaces = 2;
+
+using TManagedPixmap = TManagedId<Pixmap, None>;
 
 // Events for normal windows
 // NOLINTNEXTLINE
@@ -94,7 +87,7 @@ class CWindowClass
     std::string window_class;
     opaque_ptr<XClassHint> classHint;
 };
-// Yes, do not include class XPrivateAccess because it is mentioned in the header.S
+// Yes, do not include class XPrivateAccess because it is mentioned in the header.
 } // namespace
 
 /// @brief Real tasks to do on X server, it is private, so can be replaced by Wayland.
@@ -105,13 +98,16 @@ class XPrivateAccess
     struct TXInitFreeCaller;
     std::unique_ptr<TXInitFreeCaller> initializer;
 
-    // I think, text should existis while window exists.
-    CWindowClass window_class;
-
+  public:
     const int window_xpos;
     const int window_ypos;
     const int window_width;
     const int window_height;
+
+  private:
+    // I think, text should existis while window exists.
+    CWindowClass window_class;
+
     XVisualInfo g_vinfo{allocCType<XVisualInfo>()};
 
     std::shared_ptr<MyXOverlayColorMap> colors{nullptr};
@@ -121,52 +117,7 @@ class XPrivateAccess
     int g_screen{0};
     Window g_win{0};
     opaque_ptr<_XGC> single_gc{nullptr};
-#ifdef WITH_CAIRO
-    // Order is important.
-    opaque_ptr<cairo_surface_t> cairo_surface;
-    opaque_ptr<cairo_t> cairo;
-#endif
-
-    std::unordered_map<int, opaque_ptr<XftFont>> loadedFonts;
-
-    template <typename taIdType>
-    class TId
-    {
-      public:
-        using TIdType = taIdType;
-        MOVEONLY_ALLOWED(TId);
-        TId() = default;
-
-        TId(taIdType id_, std::function<void(taIdType)> free_) :
-            id_(id_),
-            free_(std::move(free_))
-        {
-        }
-
-        ~TId()
-        {
-            if (id_ != None && free_)
-            {
-                free_(id_);
-            }
-        }
-
-        [[nodiscard]]
-        bool IsInitialized() const
-        {
-            return id_ != None;
-        }
-
-        // NOLINTNEXTLINE
-        operator taIdType() const
-        {
-            return id_;
-        }
-
-      private:
-        taIdType id_{None};
-        std::function<void(taIdType)> free_;
-    };
+    TManagedId<Picture, None> g_windowOpaqueDestination;
 
   public:
     ///@brief Allocates RAII style memory.
@@ -187,14 +138,14 @@ class XPrivateAccess
     ///@brief Does not allocate memory, but returns some ID which should be RAII styled.
     template <typename taIdType, typename taDeAllocator, typename taAllocator,
               typename... taAllocArgs>
-    TId<taIdType> AllocateId(taDeAllocator aDeallocate, taAllocator aAllocate,
-                             taAllocArgs &&...aArgs) const
+    TManagedId<taIdType, None> AllocateId(taDeAllocator aDeallocate, taAllocator aAllocate,
+                                          taAllocArgs &&...aArgs) const
     {
         static_assert(std::is_trivial_v<taIdType>, "Only simple ID types are allowed.");
-        return TId<taIdType>{aAllocate(std::forward<taAllocArgs>(aArgs)...),
-                             [aDeallocate, this](taIdType id) {
-                                 aDeallocate(g_display, id);
-                             }};
+        return TManagedId<taIdType, None>{aAllocate(std::forward<taAllocArgs>(aArgs)...),
+                                          [aDeallocate, this](taIdType id) {
+                                              aDeallocate(g_display, id);
+                                          }};
     }
 
     XPrivateAccess() = delete;
@@ -204,26 +155,23 @@ class XPrivateAccess
     XPrivateAccess(const std::string &window_class, int window_xpos, int window_ypos,
                    int window_width, int window_height) :
         initializer(std::make_unique<TXInitFreeCaller>()),
-        window_class(window_class),
         window_xpos(window_xpos),
         window_ypos(window_ypos),
         window_width(window_width),
-        window_height(window_height)
+        window_height(window_height),
+        window_class(window_class)
     {
-        FcInit();
-        XftInit(nullptr);
-
         openDisplay();
         createShapedWindow();
 
-        single_gc = allocGlobGC();
+        single_gc = Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
         colors = std::make_shared<MyXOverlayColorMap>(g_display, getAttributes());
     }
 
     ~XPrivateAccess()
     {
-        loadedFonts.clear();
         colors.reset();
+        g_windowOpaqueDestination.reset();
         single_gc.reset();
         g_display.reset();
 
@@ -253,30 +201,8 @@ class XPrivateAccess
         XFlush(g_display);
     }
 
-    const opaque_ptr<XftFont> &getFont(int size)
-    {
-        if (loadedFonts.find(size) == loadedFonts.end())
-        {
-            loadedFonts[size] = allocFont(size);
-        }
-        return loadedFonts.at(size);
-    }
-
-    const opaque_ptr<XftFont> &getFont(const std::string &sizeText)
-    {
-        // large = normal + kDeltaFontDifference
-        constexpr int kDeltaFontDifference = 4;
-        constexpr int kNormalFontSize = 16;
-
-        // FYI: I set those big numbers for my eyes with glasses. Somebody may want lower / bigger.
-        // From the other side, existing plugins send fixed distance between strings.
-        // This one looks okish for Canon's.
-
-        return sizeText == "large" ? getFont(kNormalFontSize + kDeltaFontDifference)
-                                   : getFont(kNormalFontSize);
-    }
-
     /// @returns true if transparency is avail in system now.
+    [[nodiscard]]
     bool isTransparencyAvail() const
     {
         if (!g_display)
@@ -294,206 +220,15 @@ class XPrivateAccess
         return cmOwner != None;
     }
 
-    ///@brief Draws single string.
-    opaque_ptr<XftDraw> drawUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aColor,
-                                       int aX, int aY, const std::string &aString,
-                                       const ETextDecor aRectangle, opaque_ptr<XftDraw> aDraw) const
-    {
-        // https://github.com/jsynacek/xft-example/blob/master/main.c
-
-        const auto length = static_cast<int>(aString.length());
-        // NOLINTNEXTLINE
-        const auto *str = reinterpret_cast<const FcChar8 *>(aString.c_str());
-
-        if (!aFont)
-        {
-            throw std::runtime_error("Tried to draw string without font!!!");
-        }
-
-        if (ETextDecor::Rectangle == aRectangle)
-        {
-            const auto extents = measureUtf8String(aFont, aString);
-            const auto &black = colors->get("black");
-            XSetForeground(g_display, single_gc, black.pixel);
-            XFillRectangle(g_display, g_win, single_gc, aX, aY, extents.width, extents.height);
-        }
-
-        const auto color = colors->getFontColor(aColor);
-        if (!color)
-        {
-            throw std::runtime_error("Tried to draw string without color!!!");
-        }
-
-        if (!aDraw)
-        {
-            const auto attrs = getAttributes();
-            aDraw = AllocateOpaque<XftDraw>(XftDrawDestroy, XftDrawCreate, g_display, g_win,
-                                            attrs.visual, attrs.colormap);
-            assert(XftDrawColormap(aDraw) == attrs.colormap);
-            assert(XftDrawVisual(aDraw) == attrs.visual);
-        }
-
-        // XftDrawRect(draw, color, 50, 50, 250, 250);
-        XftDrawStringUtf8(aDraw, color, aFont, aX, aY + aFont->ascent, str, length);
-
-        return aDraw;
-    }
-
-    ///@brief Draws \n separated multiline string.
-    void drawUtf8StringMultiline(const opaque_ptr<XftFont> &aFont, const std::string &aColor,
-                                 int aX, int aY, const std::string &aString,
-                                 const ETextDecor aRectangle) const
-    {
-        if (!aFont)
-        {
-            throw std::runtime_error("Tried to draw string without font!!!");
-        }
-        opaque_ptr<XftDraw> draw{nullptr};
-        const int lineHeight = aFont->ascent + aFont->descent;
-        int currentY = aY;
-        std::istringstream iss(aString);
-        std::string line;
-        while (std::getline(iss, line))
-        {
-            draw = drawUtf8String(aFont, aColor, aX, currentY,
-                                  utility::replace_tabs_with_spaces(line, kTabSizeInSpaces),
-                                  aRectangle, std::move(draw));
-            currentY += lineHeight;
-        }
-    }
-
     ///@returns PID of the current process with window which has focus.
     ///@note X11 does not support 64 bit pids.
+    [[nodiscard]]
     std::uint32_t getFocusedWindowPid() const
     {
         Window focused = 0;
         int revert_to = 0;
         XGetInputFocus(g_display, &focused, &revert_to);
         return getWindowPropertyInt<std::uint32_t>("_NET_WM_PID", focused);
-    }
-
-#ifdef WITH_CAIRO
-    void cairoSetColor(const std::string &color) const
-    {
-        if (cairo)
-        {
-            auto [r, g, b, a] = colors->decodeRGBAColor(color).toPackedColorDoubles();
-            cairo_set_source_rgba(cairo, r, g, b, a);
-        }
-    }
-#endif
-
-    ///@brief Draws message as text.
-    void drawAsText(const draw_task::drawitem_t &drawitem)
-    {
-        assert(drawitem.drawmode == draw_task::drawmode_t::text);
-
-        const auto &font =
-          drawitem.text.fontSize ? getFont(*drawitem.text.fontSize) : getFont(drawitem.text.size);
-        drawUtf8StringMultiline(font, drawitem.color, drawitem.x, drawitem.y, drawitem.text.text,
-                                ETextDecor::NoRectangle);
-    }
-
-    ///@brief Draws message as shape (commands, compatible to M$ Win version).
-    void drawAsShape(const draw_task::drawitem_t &drawitem)
-    {
-        assert(drawitem.drawmode == draw_task::drawmode_t::shape);
-
-        const auto main_color = colors->get(drawitem.color);
-        XSetForeground(g_display, single_gc, main_color.pixel);
-#ifdef WITH_CAIRO
-        if (cairo)
-        {
-            cairoSetColor(drawitem.color);
-        }
-#endif
-
-        const auto drawLine = [&](int x1, int y1, int x2, int y2) {
-#ifdef WITH_CAIRO
-            if (cairo)
-            {
-                cairo_move_to(cairo, x1, y1);
-                cairo_line_to(cairo, x2, y2);
-                cairo_stroke(cairo);
-                return;
-            }
-#endif
-            XDrawLine(g_display, g_win, single_gc, x1, y1, x2, y2);
-        };
-
-        const auto drawMarker = [this](const draw_task::TMarkerInVectorInShape &marker,
-                                       int vector_font_size) {
-            static constexpr int kMarkerHalfSize = 4;
-#ifdef WITH_CAIRO
-            if (cairo)
-            {
-                cairoSetColor(marker.color);
-                if (marker.IsCircle())
-                {
-                    cairo_arc(cairo, marker.x, marker.y, kMarkerHalfSize, 0, 2 * M_PI);
-                    cairo_fill(cairo);
-                }
-                if (marker.IsCross())
-                {
-                    cairo_move_to(cairo, marker.x - kMarkerHalfSize, marker.y - kMarkerHalfSize);
-                    cairo_line_to(cairo, marker.x + kMarkerHalfSize, marker.y + kMarkerHalfSize);
-
-                    cairo_move_to(cairo, marker.x - kMarkerHalfSize, marker.y + kMarkerHalfSize);
-                    cairo_line_to(cairo, marker.x + kMarkerHalfSize, marker.y - kMarkerHalfSize);
-
-                    cairo_stroke(cairo);
-                }
-            }
-            else
-#endif
-            {
-                const auto marker_color = colors->get(marker.color);
-                XSetForeground(g_display, single_gc, marker_color.pixel);
-                if (marker.IsCircle())
-                {
-                    XDrawArc(g_display, g_win, single_gc, marker.x - kMarkerHalfSize,
-                             marker.y - kMarkerHalfSize, 2 * kMarkerHalfSize, 2 * kMarkerHalfSize,
-                             0, 360 * 64);
-                }
-                if (marker.IsCross())
-                {
-                    XDrawLine(g_display, g_win, single_gc, marker.x - kMarkerHalfSize,
-                              marker.y - kMarkerHalfSize, marker.x + kMarkerHalfSize,
-                              marker.y + kMarkerHalfSize);
-                    XDrawLine(g_display, g_win, single_gc, marker.x - kMarkerHalfSize,
-                              marker.y + kMarkerHalfSize, marker.x + kMarkerHalfSize,
-                              marker.y - kMarkerHalfSize);
-                }
-            }
-            // Common part with/without cairo.
-            if (marker.HasText())
-            {
-                const auto font =
-                  vector_font_size > 0 ? getFont(vector_font_size) : getFont("normal");
-                const auto extents = measureUtf8String(font, {marker.text.at(0)});
-
-                drawUtf8StringMultiline(font, marker.color,
-                                        marker.x + kMarkerHalfSize + extents.width / 3,
-                                        marker.y + kMarkerHalfSize + extents.height / 3,
-                                        marker.text, ETextDecor::NoRectangle);
-            }
-        };
-
-        const bool had_vec = draw_task::ForEachVectorPointsPair(drawitem, drawLine, drawMarker);
-        if (!had_vec && drawitem.shape.shape == "rect")
-        {
-            // TODO: distinct fill/edge colour
-#ifdef WITH_CAIRO
-            if (cairo)
-            {
-                cairo_rectangle(cairo, drawitem.x, drawitem.y, drawitem.shape.w, drawitem.shape.h);
-                cairo_stroke(cairo);
-                return;
-            }
-#endif
-            XDrawRectangle(g_display, g_win, single_gc, drawitem.x, drawitem.y, drawitem.shape.w,
-                           drawitem.shape.h);
-        }
     }
 
     ///@brief Draws SVG file on the screen.
@@ -504,7 +239,7 @@ class XPrivateAccess
 
         if (!drawitem.svg.render)
         {
-            auto pixmap = MakeXPixmap(drawitem.svg.svg, drawitem.svg.css);
+            auto pixmap = RenderXPixmapFromSvgText(drawitem.svg.svg, drawitem.svg.css);
             if (!std::get<0>(pixmap).IsInitialized())
             {
                 return;
@@ -513,8 +248,17 @@ class XPrivateAccess
                              shared_pixmap = std::make_shared<TPixmapWithDims>(std::move(pixmap)),
                              &drawitem]() {
                 const auto &[pixmap_id, pixmap_width, pixmap_height] = *shared_pixmap;
-                XCopyArea(g_display, pixmap_id, g_win, single_gc, 0, 0, pixmap_width, pixmap_height,
-                          drawitem.x, drawitem.y);
+                XRenderPictFormat *pictFormat = XRenderFindVisualFormat(g_display, g_vinfo.visual);
+                auto srcPict = AllocateId<Picture>(XRenderFreePicture, XRenderCreatePicture,
+                                                   g_display, pixmap_id, pictFormat, 0, nullptr);
+                if (!g_windowOpaqueDestination.IsInitialized())
+                {
+                    g_windowOpaqueDestination =
+                      AllocateId<Picture>(XRenderFreePicture, XRenderCreatePicture, g_display,
+                                          g_win, pictFormat, 0, nullptr);
+                }
+                XRenderComposite(g_display, PictOpOver, srcPict, None, g_windowOpaqueDestination, 0,
+                                 0, 0, 0, drawitem.x, drawitem.y, pixmap_width, pixmap_height);
             };
             drawitem.svg.render = std::move(renderer);
         }
@@ -528,7 +272,7 @@ class XPrivateAccess
     }
 
   private:
-    using TPixmapWithDims = std::tuple<TId<Pixmap>, int, int>;
+    using TPixmapWithDims = std::tuple<TManagedPixmap, int, int>;
     struct TXInitFreeCaller
     {
         NO_COPYMOVE(TXInitFreeCaller);
@@ -542,95 +286,64 @@ class XPrivateAccess
         }
     };
 
-    TPixmapWithDims MakeXPixmap(const std::string &svg, const std::string &css) const
+    [[nodiscard]]
+    TPixmapWithDims RenderXPixmapFromSvgText(const std::string &svg, const std::string &css) const
     {
-        using namespace lunasvg;
-        if (svg.empty())
+        try
         {
-            std::cerr << "Empty SVG was provided." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
-        }
-
-        auto document = Document::loadFromData(svg);
-        if (!css.empty())
-        {
-            document->applyStyleSheet(css);
-        }
-
-        auto bitmap = document->renderToBitmap();
-        if (bitmap.isNull())
-        {
-            std::cerr << "Failed to render SVG." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
-        }
-
-        auto pixmap = AllocateId<Pixmap>(XFreePixmap, XCreatePixmap, g_display, g_win,
-                                         bitmap.width(), bitmap.height(), g_vinfo.depth);
-        auto ximage = AllocateOpaque<XImage>(
-          XMyDestroyImage, XCreateImage, g_display, g_vinfo.visual, g_vinfo.depth, ZPixmap, 0,
-          reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(), 32, 0);
-        if (!ximage)
-        {
-            std::cerr << "Failed to create XImage during SVG render." << std::endl;
-            return std::make_tuple(TId<Pixmap>{}, 0, 0);
-        }
-
-        XPutImage(g_display, pixmap, single_gc, ximage, 0, 0, 0, 0, bitmap.width(),
-                  bitmap.height());
-        // Important:stopping freeing lunasvg memory.
-        ximage->data = nullptr;
-
-        return std::make_tuple(std::move(pixmap), bitmap.width(), bitmap.height());
-    }
-
-    opaque_ptr<_XGC> allocGlobGC() const
-    {
-        return Allocate<_XGC>(XFreeGC, XCreateGC, g_display, g_win, 0, nullptr);
-    }
-
-    /// @brief Allocates and caches fonts. It tries to pick font family which is installed in
-    /// system, ordered according to my personal preferences.
-    /// @note configurable font's families below.
-    opaque_ptr<XftFont> allocFont(const int aFontSize) const
-    {
-        const auto fontString = [&aFontSize](const std::string &family) {
-            std::stringstream ss;
-            ss << family;
-            ss << ":size=" << aFontSize;
-            ss << ":antialias=true";
-            return ss.str();
-        };
-
-        // Font families to try.
-        static const std::vector<std::string> kFontsToTry = {
-          "Liberation Mono", "DejaVu Sans Mono", "Source Code Pro", "Ubuntu Mono",     "Monospace",
-          "Sans Serif",      "Liberation Serif", "Serif",           "Liberation Sans", "Open Sans",
-        };
-
-        opaque_ptr<XftFont> font;
-        for (const auto &family : kFontsToTry)
-        {
-            const auto fontStr = fontString(family);
-            font = Allocate<XftFont>(XftFontClose, XftFontOpenName, g_display, g_screen,
-                                     fontStr.c_str());
-
-            if (font)
+            using namespace lunasvg;
+            if (svg.empty())
             {
-                std::cout << "Overlay allocated font: " << fontStr << std::endl;
-                break;
+                throw std::runtime_error("Empty SVG was provided.");
             }
-        }
 
-        if (!font)
+            auto document = Document::loadFromData(svg);
+            if (!css.empty())
+            {
+                document->applyStyleSheet(css);
+            }
+
+            auto bitmap = document->renderToBitmap();
+            if (bitmap.isNull())
+            {
+                std::cerr << "Failed to render SVG." << std::endl;
+                return std::make_tuple(TManagedPixmap{}, 0, 0);
+            }
+
+            constexpr int kBitnessWithAlpha = 32;
+            auto pixmap = AllocateId<Pixmap>(XFreePixmap, XCreatePixmap, g_display, g_win,
+                                             bitmap.width(), bitmap.height(), kBitnessWithAlpha);
+            auto ximage = AllocateOpaque<XImage>(
+              XMyDestroyImage, XCreateImage, g_display, g_vinfo.visual, kBitnessWithAlpha, ZPixmap,
+              0, reinterpret_cast<char *>(bitmap.data()), bitmap.width(), bitmap.height(), // NOLINT
+              kBitnessWithAlpha, 0);
+            if (!ximage)
+            {
+                std::cerr << "Failed to create XImage during SVG render." << std::endl;
+                return std::make_tuple(TManagedPixmap{}, 0, 0);
+            }
+
+            XPutImage(g_display, pixmap, single_gc, ximage, 0, 0, 0, 0, bitmap.width(),
+                      bitmap.height());
+            // Important:stopping freeing lunasvg memory.
+            ximage->data = nullptr;
+
+            return std::make_tuple(std::move(pixmap), bitmap.width(), bitmap.height());
+        }
+        catch (std::exception &e)
         {
-            throw std::runtime_error("Overlay could not load any font.");
+            std::cerr << e.what() << "\n" << svg << std::endl;
         }
-
-        return font;
+        catch (...)
+        {
+            std::cerr << "Something unknown happened while rendering SVG:\n" << svg << std::endl;
+        }
+        return TPixmapWithDims{TManagedPixmap{}, 0, 0};
     }
 
     void openDisplay()
     {
+        // Member method Allocate() uses this g_display, so we do it direct here.
         g_display = std::shared_ptr<Display>(XOpenDisplay(nullptr), [](Display *p) {
             if (p)
             {
@@ -681,8 +394,6 @@ class XPrivateAccess
         attr.override_redirect = 1; // OpenGL > 0
         attr.colormap = XCreateColormap(g_display, g_root, g_vinfo.visual, AllocNone);
 
-        // unsigned long mask =
-        // CWBackPixel|CWBorderPixel|CWWinGravity|CWBitGravity|CWSaveUnder|CWEventMask|CWDontPropagate|CWOverrideRedirect;
         // NOLINTNEXTLINE
         const unsigned long mask = CWColormap | CWBorderPixel | CWBackPixel | CWEventMask
                                    | CWWinGravity | CWBitGravity | CWSaveUnder | CWDontPropagate
@@ -694,10 +405,6 @@ class XPrivateAccess
         window_class.Set(g_display, g_win);
         std::cout << "WMID: " << g_win << std::endl;
 
-        /* g_bitmap = XCreateBitmapFromData (g_display, RootWindow(g_display, g_screen), (char
-         * *)myshape_bits, myshape_width, myshape_height); */
-
-        // XShapeCombineMask(g_display, g_win, ShapeBounding, 900, 500, g_bitmap, ShapeSet);
         XShapeCombineMask(g_display, g_win, ShapeInput, 0, 0, None, ShapeSet);
 
         // We want shape-changed event too
@@ -708,7 +415,7 @@ class XPrivateAccess
         wattr.override_redirect = 1;
         XChangeWindowAttributes(g_display, g_win, CWOverrideRedirect, &wattr);
 
-        // pass through input
+        // Pass through input.
         const XserverRegion region = XFixesCreateRegion(g_display, nullptr, 0);
         // XFixesSetWindowShapeRegion (g_display, w, ShapeBounding, 0, 0, 0);
         XFixesSetWindowShapeRegion(g_display, g_win, ShapeInput, 0, 0, region);
@@ -716,26 +423,9 @@ class XPrivateAccess
 
         // Show the window
         XMapWindow(g_display, g_win);
-
-#ifdef WITH_CAIRO
-        cairo_surface = AllocateOpaque<cairo_surface_t>(
-          cairo_surface_destroy, cairo_xlib_surface_create, g_display, g_win, g_vinfo.visual,
-          window_width, window_height);
-        if (cairo_surface)
-        {
-            cairo = AllocateOpaque<cairo_t>(cairo_destroy, cairo_create, cairo_surface);
-            if (!cairo)
-            {
-                std::cerr << "Failed to allocate drawing cairo context." << std::endl;
-            }
-        }
-        else
-        {
-            std::cerr << "Failed to create cairo surface." << std::endl;
-        }
-#endif
     }
 
+    [[nodiscard]]
     XWindowAttributes getAttributes() const
     {
         auto attrs = allocCType<XWindowAttributes>();
@@ -793,31 +483,6 @@ class XPrivateAccess
         // NOLINTNEXTLINE
         return {reinterpret_cast<const char *const>(ptr)};
     }
-
-    static int utf8CharactersCount(const std::string &str)
-    {
-        int count = 0;
-        for (const auto &c : str)
-        {
-            if ((c & 0x80) == 0 || (c & 0xc0) == 0xc0)
-            {
-                ++count;
-            }
-        }
-        return count;
-    }
-
-    /// @returns dimensions of the string @p aString drawn by @p aFont.
-    XGlyphInfo measureUtf8String(const opaque_ptr<XftFont> &aFont, const std::string &aString) const
-    {
-        const auto length = static_cast<int>(aString.length());
-        // NOLINTNEXTLINE
-        const auto *str = reinterpret_cast<const FcChar8 *>(aString.c_str());
-
-        XGlyphInfo extents;
-        XftTextExtentsUtf8(g_display, aFont, str, length, &extents);
-        return extents;
-    }
 };
 
 //**********************************************************************************************************************
@@ -853,19 +518,21 @@ void XOverlayOutput::flushFrame()
 
 void XOverlayOutput::showVersionString(const std::string &version, const std::string &color)
 {
-    xserv->drawUtf8StringMultiline(xserv->getFont(12), color, 0, 0, version, ETextDecor::Rectangle);
+    draw_task::drawitem_t task;
+    task.drawmode = draw_task::drawmode_t::text;
+    task.color = color;
+    task.text.fontSize = 16;
+    task.text.text = version;
+    task.x = 10;
+    task.y = 10;
+    xserv->drawAsSvg(
+      SvgBuilder(xserv->window_width, xserv->window_height, {}, task).BuildSvgTask());
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 {
     switch (drawitem.drawmode)
     {
-        case draw_task::drawmode_t::text:
-            xserv->drawAsText(drawitem);
-            break;
-        case draw_task::drawmode_t::shape:
-            xserv->drawAsShape(drawitem);
-            break;
         case draw_task::drawmode_t::svg:
             xserv->drawAsSvg(drawitem);
             break;
@@ -880,7 +547,6 @@ void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
 std::string XOverlayOutput::getFocusedWindowBinaryPath() const
 {
     const auto pid = xserv->getFocusedWindowPid();
-    // std::cout << "Focused window: " << pid << std::endl;
     if (0 == pid)
     {
         return {};

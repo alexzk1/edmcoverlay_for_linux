@@ -181,7 +181,7 @@ class ConfigVars:
         return font
 
     def getFontSize(self, ownerPath: str, requested: str) -> int:
-        logger.debug('Requested font size for "%s"', ownerPath)
+        # logger.debug('Requested font size for "%s"', ownerPath)
         for key in self._iFontPerPlugin:
             if key in ownerPath:
                 normal = self._iFontPerPlugin[key].get()
