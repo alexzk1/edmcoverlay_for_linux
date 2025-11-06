@@ -6,10 +6,10 @@
 #include <algorithm>
 #include <cassert>
 #include <limits>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -28,6 +28,38 @@ constexpr int kMarkerHalfSize = 4;
 constexpr int kStrokeWidth = 1;
 constexpr int kTextOffsetX = 1;
 constexpr int kTextOffsetY = 0;
+
+std::string escape_for_svg(std::string_view in)
+{
+    std::string out;
+    out.reserve(in.size());
+
+    for (char const c : in)
+    {
+        switch (c)
+        {
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            case '"':
+                out += "&quot;";
+                break;
+            case '\'':
+                out += "&apos;";
+                break;
+            default:
+                out += c;
+                break;
+        }
+    }
+    return out;
+}
 
 void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask,
                           const TIndependantFont &font)
@@ -58,7 +90,8 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
         {
             svgOutStream << " dy='1.05em'";
         }
-        svgOutStream << ">" << utility::replace_tabs_with_spaces(line, kTabSizeInSpaces)
+        svgOutStream << ">"
+                     << escape_for_svg(utility::replace_tabs_with_spaces(line, kTabSizeInSpaces))
                      << "</tspan>";
     }
     svgOutStream << "</text>";
