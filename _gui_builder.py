@@ -75,7 +75,7 @@ def MakeGuiTable(parent, defines: list[TTextAndInputRow], initialRaw: int):
                         sticky=tk.W,
                     )
                 else:
-                    nb.Entry(parent, textvariable=item.iColVariable).grid(
+                    ttk.Entry(parent, textvariable=item.iColVariable).grid(
                         row=initialRaw,
                         column=1,
                         columnspan=3,

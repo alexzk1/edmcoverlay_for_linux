@@ -306,7 +306,8 @@ class XPrivateAccess
             auto bitmap = document->renderToBitmap();
             if (bitmap.isNull())
             {
-                std::cerr << "Failed to render SVG." << std::endl;
+                std::cerr << "Failed to render SVG (NULL bitmap): " << std::endl
+                          << svg << std::endl;
                 return std::make_tuple(TManagedPixmap{}, 0, 0);
             }
 

@@ -75,7 +75,11 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
                  << " fill='" << drawTask.color << "'"
                  << " xml:space='preserve'>";
 
-    std::istringstream iss(drawTask.text.text);
+    // Ensure at least one glyph for lunasvg: empty text is represented by NBSP
+    static const std::string nbsp = "\xC2\xA0";
+    const auto &src_text = drawTask.text.text.empty() ? nbsp : drawTask.text.text;
+
+    std::istringstream iss(src_text);
     std::string line;
     bool first = true;
     while (std::getline(iss, line))
