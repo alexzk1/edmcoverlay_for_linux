@@ -22,7 +22,7 @@ except ImportError:
         edmcoverlay = None
 ```
 * Added WM_CLASS set to `edmc_linux_overlay_class` for the overlay window.
-* Added Cairo to draw the shapes (if found installed in the system).
+* ~~Added Cairo to draw the shapes (if found installed in the system).~~ Everything is converted into SVG and than `lunasvg` is used to render.
 * Added multiline support. Now binary replaces '\t' with fixed amount of the spaces and properly handles '\n' accounting current font used. Python object got method `is_multiline_supported()`. It can be tested by other plugins as:
 ```
 def supports_multiline(obj) -> bool:
