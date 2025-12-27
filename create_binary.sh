@@ -16,6 +16,8 @@ cd $DIR/cpp
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build  --verbose
 
+#wget  -O ./build/AppleColorEmoji.ttf https://github.com/samuelngs/apple-emoji-linux/releases/latest/download/AppleColorEmoji.ttf
+
 echo ""
 echo ""
 echo "Everything is prepared. You can start EDMC now."

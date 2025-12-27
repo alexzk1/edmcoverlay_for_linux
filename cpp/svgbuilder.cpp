@@ -1,16 +1,22 @@
 #include "svgbuilder.h"
 
 #include "drawables.h"
+#include "exec_exit.h"
 #include "strutils.h"
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#ifndef _NDEBUG
+    #include <iostream>
+#endif
 
 namespace {
 /*
@@ -61,16 +67,135 @@ std::string escape_for_svg(std::string_view in)
     return out;
 }
 
-void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask,
-                          const TIndependantFont &font)
+struct SpanRange
+{
+    std::size_t begin;
+    std::size_t end;
+};
+
+class Char32Iter
+{
+  public:
+    explicit Char32Iter(const std::string &s) :
+        src(s)
+    {
+    }
+
+    bool isAstral() const
+    {
+        return codepoint() >= 0x10000;
+    }
+
+    bool next()
+    {
+        if (byte_index >= src.size())
+        {
+            return false;
+        }
+
+        const auto byte = static_cast<unsigned char>(src[byte_index]);
+        if (byte < 0x80)
+        {
+            cp = byte;
+            seq_len = 1;
+        }
+        else if ((byte & 0xE0) == 0xC0)
+        {
+            cp = byte & 0x1F;
+            seq_len = 2;
+        }
+        else if ((byte & 0xF0) == 0xE0)
+        {
+            cp = byte & 0x0F;
+            seq_len = 3;
+        }
+        else if ((byte & 0xF8) == 0xF0)
+        {
+            cp = byte & 0x07;
+            seq_len = 4;
+        }
+        else
+        {
+            cp = 0xFFFD;
+            seq_len = 1;
+        }
+
+        for (std::size_t j = 1; j < seq_len && byte_index + j < src.size(); ++j)
+        {
+            cp = (cp << 6) | (src[byte_index + j] & 0x3F);
+        }
+
+        byte_index += seq_len;
+        return true;
+    }
+
+    [[nodiscard]]
+    char32_t codepoint() const
+    {
+        return cp;
+    }
+
+    [[nodiscard]]
+    std::size_t getStartIndex() const
+    {
+        return byte_index - seq_len;
+    }
+
+    [[nodiscard]]
+    std::size_t getEndIndex() const
+    {
+        return byte_index;
+    }
+
+  private:
+    const std::string &src;
+    std::size_t byte_index{0u};
+    char32_t cp{0};
+    std::size_t seq_len{0u};
+};
+
+// Each ASCII sequence will
+std::vector<SpanRange> makeSpans(const std::string &text)
+{
+    std::vector<SpanRange> spans;
+    spans.reserve(5);
+    std::size_t span_start = 0;
+    bool current_astral = true;
+    bool first = true;
+    for (Char32Iter iter(text); iter.next();)
+    {
+        const bool is_astral = iter.isAstral();
+        if (first)
+        {
+            current_astral = is_astral;
+            span_start = iter.getStartIndex();
+            first = false;
+            continue;
+        }
+
+        // Each emoji should make own spawn.
+        if (is_astral || is_astral != current_astral)
+        {
+            spans.push_back({span_start, iter.getStartIndex()});
+            span_start = iter.getStartIndex();
+            current_astral = is_astral;
+        }
+    }
+
+    if (!first)
+    {
+        spans.push_back({span_start, text.size()});
+    }
+
+    return spans;
+}
+
+void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
 {
     assert(drawTask.drawmode == draw_task::drawmode_t::text);
-    font.updateSvgStream(svgOutStream);
-
     svgOutStream << "<text"
                  << " x='" << drawTask.x << "'"
                  << " y='" << drawTask.y + drawTask.text.getFinalFontSize() << "'"
-                 << " font-family='" << font.fontFamily << "'"
                  << " font-size='" << drawTask.text.getFinalFontSize() << "'"
                  << " fill='" << drawTask.color << "'"
                  << " xml:space='preserve'>";
@@ -81,28 +206,45 @@ void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::dra
 
     std::istringstream iss(src_text);
     std::string line;
-    bool first = true;
+    bool firstLine = true;
     while (std::getline(iss, line))
     {
-        svgOutStream << "<tspan x='" << drawTask.x << "'";
-        if (first)
+        const exec_onexit non_first([&firstLine]() {
+            firstLine = false;
+        });
+
+        const auto emojiSpans = makeSpans(line);
+        if (emojiSpans.size() < 2)
         {
-            svgOutStream << " dy='0em'";
-            first = false;
+            svgOutStream << "<tspan x='" << drawTask.x << "'" << " dy='"
+                         << (firstLine ? "0em" : "1.05em") << "'>"
+                         << escape_for_svg(
+                              utility::replace_tabs_with_spaces(line, kTabSizeInSpaces))
+                         << "</tspan>";
+            continue;
         }
-        else
+        for (std::size_t i = 0; i < emojiSpans.size(); ++i)
         {
-            svgOutStream << " dy='1.05em'";
+            const auto &sp = emojiSpans[i];
+            const bool isFirstSpanInLine = (i == 0);
+            svgOutStream << "<tspan";
+            if (isFirstSpanInLine)
+            {
+                svgOutStream << " x='" << drawTask.x << "'"
+                             << " dy='" << (firstLine ? "0em" : "1.05em") << "'";
+            }
+            svgOutStream << ">";
+
+            svgOutStream << escape_for_svg(utility::replace_tabs_with_spaces(
+              line.substr(sp.begin, sp.end - sp.begin), kTabSizeInSpaces));
+
+            svgOutStream << "</tspan>";
         }
-        svgOutStream << ">"
-                     << escape_for_svg(utility::replace_tabs_with_spaces(line, kTabSizeInSpaces))
-                     << "</tspan>";
     }
     svgOutStream << "</text>";
 }
 
-void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask,
-                  const TIndependantFont &font)
+void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
 {
     assert(drawTask.drawmode == draw_task::drawmode_t::shape);
     const auto drawLineWithColor = [&](int x1, int y1, int x2, int y2, const std::string &color) {
@@ -146,7 +288,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
             textTask.color = marker.color;
             textTask.text.fontSize = vector_font_size;
             textTask.text.text = marker.text;
-            makeSvgTextMultiline(svgOutStream, textTask, font);
+            makeSvgTextMultiline(svgOutStream, textTask);
         }
     };
 
@@ -162,11 +304,10 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
 
 } // namespace
 
-SvgBuilder::SvgBuilder(const int windowWidth, const int windowHeight, TIndependantFont font,
+SvgBuilder::SvgBuilder(const int windowWidth, const int windowHeight,
                        draw_task::drawitem_t drawTask) :
     windowWidth(windowWidth),
     windowHeight(windowHeight),
-    font(std::move(font)),
     drawTask(std::move(drawTask))
 {
 }
@@ -206,25 +347,25 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
             minX -= kMarkerHalfSize + 1;
             minY -= kMarkerHalfSize + 1;
         }
-        svgTextStream << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" << width
-                      << "\" height=\"" << height << "\" overflow='visible' >";
+        svgTextStream << R"(<svg xmlns="http://www.w3.org/2000/svg" width=")" << width
+                      << R"(" height=")" << height << R"(" overflow='visible' >)";
 
         svgTextStream << "<g transform='translate(" << -minX << "," << -minY << ")'>";
     }
     else
     {
         // This is not a vector task, so we had valid drawTask.x/y as corner for 0;0 of SVG.
-        svgTextStream << "<svg xmlns=\"http://www.w3.org/2000/svg\" overflow='visible' >";
+        svgTextStream << R"(<svg xmlns="http://www.w3.org/2000/svg" overflow='visible' >)";
         svgTextStream << "<g transform='translate(" << -drawTask.x << "," << -drawTask.y << ")'>";
     }
 
     switch (drawTask.drawmode)
     {
         case draw_task::drawmode_t::text:
-            makeSvgTextMultiline(svgTextStream, drawTask, font);
+            makeSvgTextMultiline(svgTextStream, drawTask);
             break;
         case draw_task::drawmode_t::shape:
-            makeSvgShape(svgTextStream, drawTask, font);
+            makeSvgShape(svgTextStream, drawTask);
             break;
         case draw_task::drawmode_t::idk:
             // If we got unknown drawing task, just return it as-is, it could be the command.
@@ -247,6 +388,10 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     res.shape = {};
     res.svg.svg = svgTextStream.str();
     res.drawmode = draw_task::drawmode_t::svg;
+
+#ifndef _NDEBUG
+    std::cout << res.svg.svg << std::endl;
+#endif
 
     return res;
 }

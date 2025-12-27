@@ -1,0 +1,19 @@
+#!/bin/bash
+CHAR="💰"
+OUTDIR="/tmp/emoji_fonts"
+mkdir -p "$OUTDIR"
+
+# Список шрифтов, которые хотим проверить
+FONTS=(
+    "Liberation Mono"
+    "Symbols Nerd Font Mono"
+    "Noto Color Emoji"
+    "Unifont"
+)
+
+for f in "${FONTS[@]}"; do
+    # pango-view отрендерит символ в PNG
+    FILE="$OUTDIR/${f// /_}.png"
+    pango-view --font="$f 64" --text="$CHAR" --no-fallback --no-display --dpi=96 --output="$FILE"
+    echo "Rendered $CHAR with $f -> $FILE"
+done

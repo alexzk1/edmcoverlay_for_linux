@@ -526,8 +526,7 @@ void XOverlayOutput::showVersionString(const std::string &version, const std::st
     task.text.text = version;
     task.x = 10;
     task.y = 10;
-    xserv->drawAsSvg(
-      SvgBuilder(xserv->window_width, xserv->window_height, {}, task).BuildSvgTask());
+    xserv->drawAsSvg(SvgBuilder(xserv->window_width, xserv->window_height, task).BuildSvgTask());
 }
 
 void XOverlayOutput::draw(const draw_task::drawitem_t &drawitem)
