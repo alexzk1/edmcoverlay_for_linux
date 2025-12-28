@@ -58,6 +58,7 @@ inline const auto GetCustomDownloadedFont()
     return ExecutableDir() / "AppleColorEmoji.ttf";
 }
 
+/// @brief fonts are used to try to render <image> tag out of emoji (our custom renderer).
 inline const std::vector<std::string> &GetEmojiFonts()
 {
     static const std::vector<std::string> fonts = {
@@ -66,6 +67,8 @@ inline const std::vector<std::string> &GetEmojiFonts()
     return fonts;
 }
 
+/// @brief 1st font is used to enforce render of <text> tag by lunasvg, other fonts are used  to try
+/// to find BMP symbols and compute their width by our custom renderer/measurer (not lunasvg).
 inline const std::vector<std::string> &GetTextFonts()
 {
     static const std::vector<std::string> fonts = {
