@@ -185,7 +185,6 @@ class UnicodeSymbolsIterator
 
 /// @brief Detects chains of code pages in string.
 /// Breaks UTF8 string into chains, where each chain has symbols of the same GlyphClass.
-/// GlyphClass'es which cannot be rendered by lunasvg are set 1 symbol per 1 class.
 inline std::vector<SpanRange> makeSpans(const std::string &text)
 {
     std::vector<SpanRange> spans;
