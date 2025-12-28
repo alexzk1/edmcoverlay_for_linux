@@ -1,5 +1,6 @@
 #pragma once
 
+#include "font_size.hpp"
 #include "json.hpp"
 
 #include <atomic>
@@ -67,8 +68,8 @@ inline std::ostream &operator<<(std::ostream &os, drawmode_t val)
 
 struct drawitem_t
 {
-    static constexpr int kDeltaFontDifference = 4;
-    static constexpr int kNormalFontSize = 16;
+    static constexpr std::uint32_t kDeltaFontDifference = 4;
+    static constexpr std::uint32_t kNormalFontSize = 16;
 
     timestamp_t ttl;
     std::string id;
@@ -85,7 +86,7 @@ struct drawitem_t
         // text
         std::string text;
         std::string size;
-        std::optional<int> fontSize{std::nullopt};
+        std::optional<font_size::FontPixelSize> fontSize{std::nullopt};
         bool operator==(const drawtext_t &other) const
         {
             static const auto tie = [](const drawtext_t &val) {
@@ -96,15 +97,15 @@ struct drawitem_t
         }
 
         /// @returns actual font size to use depend on fields set.
-        int getFinalFontSize() const
+        font_size::FontPixelSize getFinalFontSize() const
         {
             // large = normal + kDeltaFontDifference
             // FYI: I set those big numbers for my eyes with glasses. Somebody may want lower /
             // bigger. From the other side, existing plugins send fixed distance between strings.
             // This one looks okish for Canon's.
 
-            return fontSize.value_or(size == "large" ? kNormalFontSize + kDeltaFontDifference
-                                                     : kNormalFontSize);
+            return fontSize.value_or(
+              {size == "large" ? kNormalFontSize + kDeltaFontDifference : kNormalFontSize});
         }
     } text;
 
@@ -115,7 +116,7 @@ struct drawitem_t
         std::string fill;
         int w{0};
         int h{0};
-        int vector_font_size{0};
+        font_size::FontPixelSize vector_font_size{0};
         json vect;
 
         bool operator==(const drawshape_t &other) const
@@ -127,9 +128,10 @@ struct drawitem_t
             return tie(*this) == tie(other);
         }
 
-        int getFinalFontSize() const
+        font_size::FontPixelSize getFinalFontSize() const
         {
-            return vector_font_size > 0 ? vector_font_size : kNormalFontSize;
+            return vector_font_size.size > 0 ? vector_font_size
+                                             : font_size::FontPixelSize{kNormalFontSize};
         }
     } shape;
 
@@ -260,7 +262,7 @@ inline draw_items_t parseJsonString(const std::string &src)
         {"font_size",
          [](const json &node, drawitem_t &drawitem) {
              drawitem.drawmode = drawmode_t::text;
-             drawitem.text.fontSize = node.get<int>();
+             drawitem.text.fontSize = {node.get<std::uint32_t>()};
          }},
         {"font_file",
          [](const json &node, drawitem_t &drawitem) {
@@ -270,7 +272,7 @@ inline draw_items_t parseJsonString(const std::string &src)
         {"vector_font_size",
          [](const json &node, drawitem_t &drawitem) {
              drawitem.drawmode = drawmode_t::shape;
-             drawitem.shape.vector_font_size = node.get<int>();
+             drawitem.shape.vector_font_size = {node.get<std::uint32_t>()};
          }},
 
         {"shape",

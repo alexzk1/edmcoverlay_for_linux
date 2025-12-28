@@ -28,9 +28,6 @@
 #include <freetype/config/integer-types.h>
 
 namespace {
-/// @brief width = height * kHeightWidthScaleRatio
-/// This is correction constant.
-constexpr float kHeightWidthScaleRatio = 0.85f;
 
 const std::string kBase64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -311,10 +308,12 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
                 continue;
             }
             int best_match = 0;
-            int diff = std::abs(what.font.fontSize - face->available_sizes[0].height);
+            int diff =
+              std::abs(static_cast<int>(what.font.fontSize.size) - face->available_sizes[0].height);
             for (int i = 1; i < face->num_fixed_sizes; ++i)
             {
-                const int ndiff = std::abs(what.font.fontSize - face->available_sizes[i].height);
+                const int ndiff = std::abs(static_cast<int>(what.font.fontSize.size)
+                                           - face->available_sizes[i].height);
                 if (ndiff < diff)
                 {
                     best_match = i;
@@ -328,7 +327,7 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
         }
         else
         {
-            FT_Set_Pixel_Sizes(face, 0, what.font.fontSize);
+            FT_Set_Pixel_Sizes(face, 0, what.font.fontSize.size);
         }
 
         const auto glyph_index = FT_Get_Char_Index(face, what.emoji);
@@ -397,7 +396,7 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
                 continue;
         }
 
-        bmp = scaleBitmapToFitHeight(bmp, what.font.fontSize);
+        bmp = scaleBitmapToFitHeight(bmp, what.font.fontSize.size);
 
         result.width = bmp.width;
         result.height = bmp.height;
@@ -409,8 +408,8 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
 
 EmojiRenderer::~EmojiRenderer() = default;
 
-unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
-                                         const std::vector<char32_t> &text)
+EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
+                                                         const std::vector<char32_t> &text)
 {
     for (const auto &font_path : font.fontFaceOrPath)
     {
@@ -429,10 +428,12 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
                 continue;
             }
             int best_match = 0;
-            int diff = std::abs(font.fontSize - face->available_sizes[0].height);
+            int diff =
+              std::abs(static_cast<int>(font.fontSize.size) - face->available_sizes[0].height);
             for (int i = 1; i < face->num_fixed_sizes; ++i)
             {
-                const int ndiff = std::abs(font.fontSize - face->available_sizes[i].height);
+                const int ndiff =
+                  std::abs(static_cast<int>(font.fontSize.size) - face->available_sizes[i].height);
                 if (ndiff < diff)
                 {
                     best_match = i;
@@ -446,10 +447,10 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
         }
         else
         {
-            FT_Set_Pixel_Sizes(face, 0, font.fontSize);
+            FT_Set_Pixel_Sizes(face, 0, font.fontSize.size);
         }
 
-        unsigned int pen_x = 0;
+        float pen_x = 0;
         FT_UInt prev = 0;
 
         bool all_ok = true;
@@ -462,27 +463,25 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
                 break;
             }
 
-            if (prev)
-            {
-                FT_Vector kern;
-                if (FT_Get_Kerning(face, prev, glyph_index, FT_KERNING_DEFAULT, &kern) == 0)
-                {
-                    pen_x += kern.x >> 6;
-                }
-            }
-
             if (FT_Load_Glyph(face, glyph_index, options) == 0)
             {
-                const bool is_bitmap = UnicodeSymbolsIterator::classify(ch) != GlyphClass::Latin1;
-                const float scale = kHeightWidthScaleRatio * static_cast<float>(font.fontSize)
-                                    / static_cast<float>(face->glyph->bitmap.rows);
-                const unsigned int advance_px = face->glyph->advance.x >> 6;
-                const unsigned int visual_width =
-                  is_bitmap ? static_cast<unsigned int>(
-                                static_cast<float>(face->glyph->bitmap.width) * scale)
-                            : advance_px;
+                const bool is_bitmap = UnicodeSymbolsIterator::classify(ch) == GlyphClass::BMP;
+                const auto scale = static_cast<float>(font.fontSize.size)
+                                   / static_cast<float>(face->glyph->bitmap.rows);
+                const auto advance_px = static_cast<float>(face->glyph->advance.x >> 6);
+                const float visual_width =
+                  is_bitmap ? static_cast<float>(face->glyph->bitmap.width) * scale : advance_px;
 
                 pen_x += visual_width;
+
+                if (prev && !is_bitmap)
+                {
+                    FT_Vector kern;
+                    if (FT_Get_Kerning(face, prev, glyph_index, FT_KERNING_DEFAULT, &kern) == 0)
+                    {
+                        pen_x += static_cast<float>(kern.x >> 6);
+                    }
+                }
             }
             else
             {
@@ -494,13 +493,14 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
         }
         if (all_ok)
         {
-            return pen_x;
+            return {static_cast<unsigned int>(pen_x), font_path};
         }
     }
 
     // Work around if we could not find valid font.
-    return static_cast<unsigned int>(text.size())
-           * static_cast<unsigned int>(static_cast<double>(font.fontSize) * kHeightWidthScaleRatio);
+    return {static_cast<unsigned int>(text.size())
+              * static_cast<unsigned int>(static_cast<double>(font.fontSize.size)),
+            ""};
 }
 
 EmojiRenderer &EmojiRenderer::instance()

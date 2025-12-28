@@ -522,7 +522,7 @@ void XOverlayOutput::showVersionString(const std::string &version, const std::st
     draw_task::drawitem_t task;
     task.drawmode = draw_task::drawmode_t::text;
     task.color = color;
-    task.text.fontSize = 16;
+    task.text.fontSize = {16u};
     task.text.text = version;
     task.x = 10;
     task.y = 10;

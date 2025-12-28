@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <filesystem>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -95,19 +96,18 @@ class TextToSvgConverter
         {
             state.x = drawTask.x;
             processSingleLine(svgOutStream, line);
-            state.y +=
-              static_cast<int>(kYSpacing * static_cast<float>(drawTask.text.getFinalFontSize()));
+            state.y += static_cast<int>(
+              kYSpacing * static_cast<float>(drawTask.text.getFinalFontSize().size));
         }
     }
 
   private:
-    static constexpr float kXSpacing = 1.03f;
     static constexpr float kYSpacing = 1.05f;
 
     struct RenderState
     {
-        int x{0};
-        int y{0};
+        unsigned int x{0};
+        unsigned int y{0};
     };
 
     const draw_task::drawitem_t &drawTask;
@@ -166,7 +166,9 @@ class TextToSvgConverter
           R"(<image x="%u" y="%u" width="%u" height="%u" href="data:image/png;base64,%s"/>)",
           state.x, state.y, png.width, png.height, png.png_base64);
 
-        state.x += static_cast<int>(static_cast<float>(png.width) * kXSpacing);
+        state.x += png.width
+                   + std::min<unsigned int>(
+                     3u, static_cast<unsigned int>(static_cast<float>(png.width) * 0.05f));
     }
 
     /// @brief generates <text> tag which has no emoji symbols which are failed by lunasvg.
@@ -176,23 +178,30 @@ class TextToSvgConverter
         using namespace format_helper;
         const auto sub = line.substr(range.begin, range.end - range.begin);
 
-        const std::string font_fam = range.cls == GlyphClass::Latin1
-                                       ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
-                                       : "";
+        const auto measure = measureWidhtOfText(sub);
+        std::string font_fam = range.cls == GlyphClass::Latin1
+                                 ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
+                                 : "";
+        if (!measure.fontUsedToMeasure.empty()
+            && !std::filesystem::exists(measure.fontUsedToMeasure))
+        {
+            // This is "family font name" (not a file name) so we can use for luna-svg.
+            font_fam = stringfmt(R"(font-family="%s")", measure.fontUsedToMeasure);
+        }
 
         svgOutStream << stringfmt(
-          R"(<text x="%u" y="%u" font-size="%i" fill="%s" %s xml:space='preserve'>)", state.x,
-          state.y + drawTask.text.getFinalFontSize(), drawTask.text.getFinalFontSize(),
+          R"(<text x="%u" y="%u" font-size="%ipx" fill="%s" %s xml:space='preserve'>)", state.x,
+          state.y + drawTask.text.getFinalFontSize().size, drawTask.text.getFinalFontSize(),
           drawTask.color, font_fam)
                      << escape_for_svg(sub) << "</text>";
-        state.x += static_cast<int>(static_cast<float>(measureWidhtOfText(sub)) * kXSpacing);
+        state.x += measure.computedWidth;
     }
 
     /// @brief tries to measure the width of text rendered by luasvg for <text> tag.
     /// @note we can set precise Latin font used and measure it, but for bitmap fonts we're doing
     /// guessings there. We find some font, but luasvg could find another.
     [[nodiscard]]
-    unsigned int measureWidhtOfText(const std::string &text) const
+    emoji::EmojiRenderer::TextFontWidth measureWidhtOfText(const std::string &text) const
     {
         std::vector<char32_t> txt;
         txt.reserve(text.size());
@@ -230,7 +239,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
     };
 
     const auto drawMarker = [&](const draw_task::TMarkerInVectorInShape &marker,
-                                int vector_font_size) {
+                                font_size::FontPixelSize vector_font_size) {
         if (marker.IsCircle())
         {
             svgOutStream << "<circle cx='" << marker.x << "' cy='" << marker.y << "' r='"
@@ -311,7 +320,8 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
 
         if (drawTask.shape.vect.size() == 1)
         {
-            height = 2 * kMarkerHalfSize + 1 + drawTask.shape.getFinalFontSize() + kTextOffsetY;
+            height =
+              2 * kMarkerHalfSize + 1 + drawTask.shape.getFinalFontSize().size + kTextOffsetY;
             width = windowWidth / 4;
             minX -= kMarkerHalfSize + 1;
             minY -= kMarkerHalfSize + 1;
@@ -358,9 +368,9 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     res.svg.svg = svgTextStream.str();
     res.drawmode = draw_task::drawmode_t::svg;
 
-    // #ifndef _NDEBUG
-    //     std::cout << res.svg.svg << std::endl;
-    // #endif
+#ifndef _NDEBUG
+    std::cout << res.svg.svg << std::endl;
+#endif
 
     return res;
 }

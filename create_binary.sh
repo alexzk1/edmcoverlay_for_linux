@@ -13,7 +13,7 @@ DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 #We expect subfolder cpp there.
 cd $DIR/cpp
 
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build  --verbose
 
 FONT_FILE=./build/AppleColorEmoji.ttf

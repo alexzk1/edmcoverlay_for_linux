@@ -68,8 +68,7 @@ inline const std::vector<std::string> &GetEmojiFonts()
     return fonts;
 }
 
-/// @brief 1st font is used to enforce render of <text> tag by lunasvg, other fonts are used  to try
-/// to find BMP symbols and compute their width by our custom renderer/measurer (not lunasvg).
+/// @brief fonts are used to measure and draw <text> tags.
 inline const std::vector<std::string> &GetTextFonts()
 {
     static const std::vector<std::string> fonts = {

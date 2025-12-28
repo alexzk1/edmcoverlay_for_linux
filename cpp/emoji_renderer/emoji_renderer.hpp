@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cm_ctors.h"
+#include "font_size.hpp"
 
 #include <cstdint>
 #include <map>
@@ -12,7 +13,7 @@ namespace emoji {
 
 struct EmojiFontRequirement
 {
-    int fontSize;
+    font_size::FontPixelSize fontSize;
     std::vector<std::string> fontFaceOrPath;
 
     bool operator<(const EmojiFontRequirement &other) const
@@ -62,6 +63,13 @@ struct PngData
 class EmojiRenderer
 {
   public:
+    struct TextFontWidth
+    {
+        unsigned int computedWidth;
+        // Font selected or empty if fallback was used.
+        std::string fontUsedToMeasure;
+    };
+
     NO_COPYMOVE(EmojiRenderer);
 
     /// @brief Renders emoji to bitmap if required system libraries were found.
@@ -69,8 +77,8 @@ class EmojiRenderer
     const PngData &renderToPng(const EmojiToRender &what);
     ~EmojiRenderer();
 
-    /// @returns computed pixel width of the text string.
-    unsigned int computeWidth(const EmojiFontRequirement &font, const std::vector<char32_t> &text);
+    /// @returns computed pixel width of the text string with one of the fonts.
+    TextFontWidth computeWidth(const EmojiFontRequirement &font, const std::vector<char32_t> &text);
 
     /// @returns reference to static thread_local instance.
     static EmojiRenderer &instance();
