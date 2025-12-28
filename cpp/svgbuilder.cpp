@@ -389,7 +389,8 @@ class TextToSvgConverter
         return 0u == computed && Char32Iter::classify(txt.front()) == GlyphClass::BMP
                  ? static_cast<unsigned int>(txt.size())
                      * static_cast<unsigned int>(
-                       static_cast<double>(drawTask.text.getFinalFontSize()) * 0.85)
+                       static_cast<double>(drawTask.text.getFinalFontSize())
+                       * emoji::kHeightWidthScaleRation)
                  : computed;
     }
 };
