@@ -42,6 +42,7 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
 
 namespace fs = std::filesystem;
 
+/// @returns path where this binary is located.
 inline fs::path ExecutableDir()
 {
     std::array<char, PATH_MAX> buf{0};
@@ -78,16 +79,4 @@ inline const std::vector<std::string> &GetTextFonts()
       "Noto Color Emoji",
     };
     return fonts;
-}
-
-inline bool InstallCustomEmojiFont()
-{
-    const auto font = GetCustomDownloadedFont();
-    std::error_code ec{};
-    if (!fs::is_regular_file(font, ec) || ec)
-    {
-        std::cerr << "ERROR: Emoji font not found: " << font << '\n';
-        return false;
-    }
-    return InstallNormalFontFileToLuna(font);
 }
