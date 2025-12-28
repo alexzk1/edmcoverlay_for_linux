@@ -54,6 +54,7 @@ inline fs::path ExecutableDir()
     return fs::path(buf.data()).parent_path();
 }
 
+/// @returns path to font downloaded by build script.
 inline const auto GetCustomDownloadedFont()
 {
     return ExecutableDir() / "AppleColorEmoji.ttf";
