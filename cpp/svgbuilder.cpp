@@ -70,6 +70,8 @@ std::string escape_for_svg(std::string_view in)
     return out;
 }
 
+/// @brief Convert given drawTask into svg <text>/<image> chain where <image> is used for
+/// emodji.
 class TextToSvgConverter
 {
   public:
@@ -83,6 +85,7 @@ class TextToSvgConverter
           drawTask.text.text.empty() ? nbsp : drawTask.text.text, kTabSizeInSpaces);
     }
 
+    /// @brief Does actual conversion and puts result into @p svgOutStream.
     void generateSvg(std::ostringstream &svgOutStream)
     {
         std::istringstream iss(textToDraw);
@@ -112,6 +115,9 @@ class TextToSvgConverter
     std::string textToDraw;
 
   protected:
+    /// @brief process single line of the source text: split into possible <text> and <image>
+    /// chains, then generate each separated.
+    /// It tracks positions of the tags too.
     void processSingleLine(std::ostringstream &svgOutStream, const std::string &line)
     {
         const auto emojiSpans = makeSpans(line);
@@ -140,6 +146,8 @@ class TextToSvgConverter
         }
     }
 
+    /// @brief custom render of emoji symbols failed by lunasvg and add it as <image> tag per
+    /// symbol.
     void renderCusomSingleSymbolImageTag(std::ostringstream &svgOutStream, const char32_t symbol)
     {
         using namespace format_helper;
@@ -161,6 +169,7 @@ class TextToSvgConverter
         state.x += static_cast<int>(static_cast<float>(png.width) * kXSpacing);
     }
 
+    /// @brief generates <text> tag which has no emoji symbols which are failed by lunasvg.
     void makeTextTag(std::ostringstream &svgOutStream, const std::string &line,
                      const SpanRange &range)
     {
@@ -179,6 +188,9 @@ class TextToSvgConverter
         state.x += static_cast<int>(static_cast<float>(measureWidhtOfText(sub)) * kXSpacing);
     }
 
+    /// @brief tries to measure the width of text rendered by luasvg for <text> tag.
+    /// @note we can set precise Latin font used and measure it, but for bitmap fonts we're doing
+    /// guessings there. We find some font, but luasvg could find another.
     [[nodiscard]]
     unsigned int measureWidhtOfText(const std::string &text) const
     {

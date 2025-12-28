@@ -4,10 +4,10 @@ HOST="127.0.0.1"
 PORT="5010"
 
 messages=(
-'{"id": "test1", "text": "You are low on fuel!", "size": "normal", "color": "red", "x": 100, "y": 100, "ttl": 8}'
+'{"id": "test1", "text": "You are low on fuel🚫(oops❔)", "size": "normal", "color": "red", "x": 100, "y": 100, "ttl": 15}'
 '{"id": "test2", "text": "You are low on fuel!!", "font_size": 50, "color": "red", "x": 150, "y": 130, "ttl": 8}'
 '{"id": "test3", "text": "You are low on fuel!!!", "size": "normal", "font_size": 70, "color": "blue", "x": 400, "y": 140, "ttl": 8}'
-'{"id": "test4", "text": "You are low on fuel!!\n\tNew line ★ ▲ ■ ☯ ♞ 🚫💰➖❔ tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 8}'
+'{"id": "test4", "text": "You are low on fuel!!\n\tNew line★ ▲ ■ ☯ ♞ 🚫💰➖❔ tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 8}'
 )
 
 
@@ -15,7 +15,7 @@ messages2=(
 '{"id": "test4", "text": "You are low on fuel!!\n\tNew line★▲■☯♞💰💰❔❔tabbed!!\nNew line non-tabbed!!!", "font_size": 90, "color": "green", "x": 150, "y": 330, "ttl": 15}'
 )
 
-for msg in "${messages2[@]}"; do
+for msg in "${messages[@]}"; do
     len=$(echo -n "$msg" | wc -c)
     echo -n "${len}#${msg}" | nc "$HOST" "$PORT"
 done
