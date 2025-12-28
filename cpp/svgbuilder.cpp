@@ -192,6 +192,10 @@ class Char32Iter
         {
             return GlyphClass::Latin1;
         }
+        if (symbol >= 0x2700 && symbol <= 0x27BF)
+        {
+            return GlyphClass::Astral;
+        }
         if (symbol <= 0xFFFF)
         {
             return GlyphClass::BMP;
