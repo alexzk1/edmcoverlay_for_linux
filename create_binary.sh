@@ -16,7 +16,11 @@ cd $DIR/cpp
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build  --verbose
 
-#wget  -O ./build/AppleColorEmoji.ttf https://github.com/samuelngs/apple-emoji-linux/releases/latest/download/AppleColorEmoji.ttf
+FONT_FILE=./build/AppleColorEmoji.ttf
+if [[ ! -f $FONT_FILE ]]; then
+   #Uncomment line below to download and use emojiies font if you do not have installed in system.
+   #wget  -O $FONT_FILE https://github.com/samuelngs/apple-emoji-linux/releases/latest/download/AppleColorEmoji.ttf
+fi
 
 echo ""
 echo ""

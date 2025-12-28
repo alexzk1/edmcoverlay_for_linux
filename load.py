@@ -74,7 +74,7 @@ def __start_overlay():
         tmp = edmcoverlay.Overlay()
         tmp.send_message(
             "edmcintro",
-            "EDMC Overlay for Linux is Ready\n\tNow with multiline support.\n\tNow with SVG images support<-->.\nWith emoji: ★ ▲ ■ ☯ ♞ 💰.\n",
+            "EDMC Overlay for Linux is Ready\n\tNow with multiline support.\n\tNow with SVG images support<-->.\nNow with emojiies: ★ ▲ ■ ☯ ♞ 💰.\n",
             "yellow",
             30,
             165,
@@ -145,7 +145,7 @@ def __start_overlay():
             svgid="logo",
             svg=tux_svg,
             x=50,
-            y=270,
+            y=280,
             ttl=10,
         )
 

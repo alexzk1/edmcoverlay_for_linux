@@ -1,7 +1,10 @@
 #include "svgbuilder.h"
 
 #include "drawables.h"
+#include "emoji_renderer.hpp"
 #include "exec_exit.h"
+#include "luna_default_fonts.h"
+#include "strfmt.h"
 #include "strutils.h"
 
 #include <algorithm>
@@ -13,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #ifndef _NDEBUG
     #include <iostream>
@@ -67,12 +71,46 @@ std::string escape_for_svg(std::string_view in)
     return out;
 }
 
-struct SpanRange
-{
-    std::size_t begin;
-    std::size_t end;
+enum class GlyphClass : std::uint8_t {
+    Latin1, // 0x0000–0x00FF (1 byte UTF-8)
+    BMP,    // 0x0100–0xFFFF (2–3 bytes UTF-8)
+    Astral, // >= 0x10000 (4 bytes UTF-8)
+    NotSet,
 };
 
+enum class SpanPosition : std::uint8_t {
+    FirstSpan,
+    InsideStringSpan,
+    NotSet,
+};
+
+struct SpanRange
+{
+    std::size_t begin{0u};
+    std::size_t end{0u};
+    GlyphClass cls{GlyphClass::NotSet};
+    SpanPosition position{SpanPosition::NotSet};
+
+    SpanRange &setEnd(std::size_t e)
+    {
+        end = e;
+        return *this;
+    }
+
+    [[nodiscard]]
+    bool isValid() const
+    {
+        return end > begin;
+    }
+
+    [[nodiscard]]
+    bool isEmoji() const
+    {
+        return cls == GlyphClass::Astral;
+    }
+};
+
+/// @brief Per symbol string iterator. Symbols can be 1-4 bytes.
 class Char32Iter
 {
   public:
@@ -81,19 +119,25 @@ class Char32Iter
     {
     }
 
-    bool isAstral() const
+    bool rewindTo(const SpanRange &range)
     {
-        return codepoint() >= 0x10000;
+        next_byte_index = range.begin;
+        seq_len = 0;
+        cp = 0;
+
+        return next() && classify() == range.cls;
     }
 
+    /// @brief Position this object on next symbol in string.
+    /// @returns false if end-of-string reached, object remains unchanged.
     bool next()
     {
-        if (byte_index >= src.size())
+        if (next_byte_index >= src.size())
         {
             return false;
         }
 
-        const auto byte = static_cast<unsigned char>(src[byte_index]);
+        const auto byte = static_cast<unsigned char>(src[next_byte_index]);
         if (byte < 0x80)
         {
             cp = byte;
@@ -120,128 +164,236 @@ class Char32Iter
             seq_len = 1;
         }
 
-        for (std::size_t j = 1; j < seq_len && byte_index + j < src.size(); ++j)
+        for (std::size_t j = 1; j < seq_len && next_byte_index + j < src.size(); ++j)
         {
-            cp = (cp << 6) | (src[byte_index + j] & 0x3F);
+            cp = (cp << 6) | (src[next_byte_index + j] & 0x3F);
         }
 
-        byte_index += seq_len;
+        next_byte_index += seq_len;
         return true;
     }
 
+    ///@returns classification of the current positioned symbol.
     [[nodiscard]]
-    char32_t codepoint() const
+    GlyphClass classify() const
+    {
+        if (seq_len == 0u)
+        {
+            return GlyphClass::NotSet;
+        }
+        return classify(symbol());
+    }
+
+    ///@returns classification of the given symbol.
+    [[nodiscard]]
+    static GlyphClass classify(char32_t symbol)
+    {
+        if (symbol <= 0x00FF)
+        {
+            return GlyphClass::Latin1;
+        }
+        if (symbol <= 0xFFFF)
+        {
+            return GlyphClass::BMP;
+        }
+        return GlyphClass::Astral;
+    }
+
+    /// @returns current symbol, it should be used after next().
+    [[nodiscard]]
+    char32_t symbol() const
     {
         return cp;
     }
 
+    /// @returns byte offset of the first byte of THIS symbol in the string.
     [[nodiscard]]
     std::size_t getStartIndex() const
     {
-        return byte_index - seq_len;
+        return next_byte_index - seq_len;
     }
 
+    /// @returns byte offset **immediately after this symbol** (start of next symbol).
     [[nodiscard]]
     std::size_t getEndIndex() const
     {
-        return byte_index;
+        return next_byte_index;
     }
 
   private:
     const std::string &src;
-    std::size_t byte_index{0u};
+    std::size_t next_byte_index{0u};
     char32_t cp{0};
     std::size_t seq_len{0u};
 };
 
-// Each ASCII sequence will
+/// @brief Detects chains of code pages in string.
 std::vector<SpanRange> makeSpans(const std::string &text)
 {
     std::vector<SpanRange> spans;
     spans.reserve(5);
-    std::size_t span_start = 0;
-    bool current_astral = true;
     bool first = true;
+
+    SpanRange current_span;
     for (Char32Iter iter(text); iter.next();)
     {
-        const bool is_astral = iter.isAstral();
+        const auto cls = iter.classify();
         if (first)
         {
-            current_astral = is_astral;
-            span_start = iter.getStartIndex();
+            current_span = {iter.getStartIndex(), 0u, cls, SpanPosition::FirstSpan};
             first = false;
             continue;
         }
 
-        // Each emoji should make own spawn.
-        if (is_astral || is_astral != current_astral)
+        // Astral characters must be 1 per span as we handle them differently.
+        if (cls == GlyphClass::Astral || cls != current_span.cls)
         {
-            spans.push_back({span_start, iter.getStartIndex()});
-            span_start = iter.getStartIndex();
-            current_astral = is_astral;
+            spans.emplace_back(current_span.setEnd(iter.getStartIndex()));
+            current_span = {iter.getStartIndex(), 0u, cls,
+                            SpanPosition::InsideStringSpan}; // Pointing to next symbol.
         }
     }
 
     if (!first)
     {
-        spans.push_back({span_start, text.size()});
+        auto span = current_span.setEnd(text.size());
+        if (span.isValid())
+        {
+            spans.emplace_back(span);
+        }
     }
 
     return spans;
 }
 
-void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
+class TextToSvgConverter
 {
-    assert(drawTask.drawmode == draw_task::drawmode_t::text);
-    svgOutStream << "<text"
-                 << " x='" << drawTask.x << "'"
-                 << " y='" << drawTask.y + drawTask.text.getFinalFontSize() << "'"
-                 << " font-size='" << drawTask.text.getFinalFontSize() << "'"
-                 << " fill='" << drawTask.color << "'"
-                 << " xml:space='preserve'>";
-
-    // Ensure at least one glyph for lunasvg: empty text is represented by NBSP
-    static const std::string nbsp = "\xC2\xA0";
-    const auto &src_text = drawTask.text.text.empty() ? nbsp : drawTask.text.text;
-
-    std::istringstream iss(src_text);
-    std::string line;
-    bool firstLine = true;
-    while (std::getline(iss, line))
+  public:
+    explicit TextToSvgConverter(const draw_task::drawitem_t &drawTask) :
+        drawTask(drawTask),
+        state{}
     {
-        const exec_onexit non_first([&firstLine]() {
-            firstLine = false;
-        });
+        assert(drawTask.drawmode == draw_task::drawmode_t::text);
+        static const std::string nbsp = "\xC2\xA0";
+        textToDraw = utility::replace_tabs_with_spaces(
+          drawTask.text.text.empty() ? nbsp : drawTask.text.text, kTabSizeInSpaces);
+    }
 
-        const auto emojiSpans = makeSpans(line);
-        if (emojiSpans.size() < 2)
+    void generateSvg(std::ostringstream &svgOutStream)
+    {
+        std::istringstream iss(textToDraw);
+        std::string line;
+        state.y = drawTask.y;
+        while (std::getline(iss, line))
         {
-            svgOutStream << "<tspan x='" << drawTask.x << "'" << " dy='"
-                         << (firstLine ? "0em" : "1.05em") << "'>"
-                         << escape_for_svg(
-                              utility::replace_tabs_with_spaces(line, kTabSizeInSpaces))
-                         << "</tspan>";
-            continue;
-        }
-        for (std::size_t i = 0; i < emojiSpans.size(); ++i)
-        {
-            const auto &sp = emojiSpans[i];
-            const bool isFirstSpanInLine = (i == 0);
-            svgOutStream << "<tspan";
-            if (isFirstSpanInLine)
-            {
-                svgOutStream << " x='" << drawTask.x << "'"
-                             << " dy='" << (firstLine ? "0em" : "1.05em") << "'";
-            }
-            svgOutStream << ">";
-
-            svgOutStream << escape_for_svg(utility::replace_tabs_with_spaces(
-              line.substr(sp.begin, sp.end - sp.begin), kTabSizeInSpaces));
-
-            svgOutStream << "</tspan>";
+            state.x = drawTask.x;
+            processSingleLine(svgOutStream, line);
+            state.y += kYSpacing * drawTask.text.getFinalFontSize();
         }
     }
-    svgOutStream << "</text>";
+
+  private:
+    static constexpr double kXSpacing = 1.05;
+    static constexpr double kYSpacing = 1.05;
+
+    struct RenderState
+    {
+        int x{0};
+        int y{0};
+    };
+
+    const draw_task::drawitem_t &drawTask;
+    RenderState state;
+    std::string textToDraw;
+
+  protected:
+    void processSingleLine(std::ostringstream &svgOutStream, const std::string &line)
+    {
+        const auto emojiSpans = makeSpans(line);
+        for (const auto &span : emojiSpans)
+        {
+            if (span.isEmoji())
+            {
+                Char32Iter iter(line);
+                if (!iter.rewindTo(span))
+                {
+#ifndef _NDEBUG
+                    std::cerr << "Something went wrong. Could not rewind to pos " << span.begin
+                              << "\n";
+#endif
+                    continue;
+                }
+                makeImage(svgOutStream, iter.symbol());
+                continue;
+            }
+            makeText(svgOutStream, line, span);
+        }
+    }
+
+    void makeImage(std::ostringstream &svgOutStream, const char32_t symbol)
+    {
+        using namespace format_helper;
+        using namespace emoji;
+
+        EmojiFontRequirement font{drawTask.text.getFinalFontSize(), GetEmojiFonts()};
+        const auto &png = EmojiRenderer::instance().renderToPng({symbol, std::move(font)});
+        if (!png.isValid())
+        {
+#ifndef _NDEBUG
+            std::cerr << "Something went wrong. Could not draw emoji-png.\n";
+#endif
+            return;
+        }
+        svgOutStream << stringfmt(
+          R"(<image x="%u" y="%u" width="%u" height="%u" href="data:image/png;base64,%s"/>)",
+          state.x, state.y, png.width, png.height, png.png_base64);
+
+        state.x += png.width;
+    }
+
+    void makeText(std::ostringstream &svgOutStream, const std::string &line, const SpanRange &range)
+    {
+        using namespace format_helper;
+        const auto sub = line.substr(range.begin, range.end - range.begin);
+
+        const std::string font_fam = range.cls == GlyphClass::Latin1
+                                       ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
+                                       : "";
+
+        svgOutStream << stringfmt(
+          R"(<text x="%u" y="%u" font-size="%i" fill="%s" %s xml:space='preserve'>)", state.x,
+          state.y + drawTask.text.getFinalFontSize(), drawTask.text.getFinalFontSize(),
+          drawTask.color, font_fam)
+                     << escape_for_svg(sub) << "</text>";
+        state.x += measureWidhtOfText(sub);
+    }
+
+    [[nodiscard]]
+    unsigned int measureWidhtOfText(const std::string &text) const
+    {
+        std::vector<char32_t> txt;
+        txt.reserve(text.size());
+        for (Char32Iter iter(text); iter.next();)
+        {
+            txt.emplace_back(iter.symbol());
+        }
+
+        const emoji::EmojiFontRequirement font{drawTask.text.getFinalFontSize(), GetTextFonts()};
+        const auto computed = emoji::EmojiRenderer::instance().computeWidth(font, txt);
+
+        // Work around if we could not find valid font.
+        return 0u == computed && Char32Iter::classify(txt.front()) == GlyphClass::BMP
+                 ? static_cast<unsigned int>(txt.size())
+                     * static_cast<unsigned int>(
+                       static_cast<double>(drawTask.text.getFinalFontSize()) * 0.85)
+                 : computed;
+    }
+};
+
+void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
+{
+    TextToSvgConverter converter(drawTask);
+    converter.generateSvg(svgOutStream);
 }
 
 void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)

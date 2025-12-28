@@ -1,16 +1,18 @@
 #pragma once
 
-#include <limits.h>
 #include <linux/limits.h>
 #include <lunasvg.h>
 #include <unistd.h>
 
 #include <array>
+#include <cstddef>
 #include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <unordered_set>
+#include <vector>
 
 /// @brief Tries to add font path to lunasvg once. It is up-to caller to ensure it is exists.
 inline bool InstallNormalFontFileToLuna(const std::string &path)
@@ -40,26 +42,45 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
 
 namespace fs = std::filesystem;
 
-inline fs::path executable_dir()
+inline fs::path ExecutableDir()
 {
-    std::array<char, PATH_MAX> buf;
-    ssize_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1);
+    std::array<char, PATH_MAX> buf{0};
+    const std::size_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1);
     if (len <= 0)
     {
         return {};
     }
-
-    buf[len] = '\0';
     return fs::path(buf.data()).parent_path();
+}
+
+inline const std::vector<std::string> &GetEmojiFonts()
+{
+    static const std::vector<std::string> fonts = {ExecutableDir() / "AppleColorEmoji.ttf",
+                                                   "Segoe UI Emoji",
+                                                   "Symbols Nerd Font Mono",
+                                                   "Noto Color Emoji",
+                                                   "Apple Color Emoji",
+                                                   "Liberation Mono"};
+    return fonts;
+}
+
+inline const std::vector<std::string> &GetTextFonts()
+{
+    static const std::vector<std::string> fonts = {
+      "Liberation Mono",  "Segoe UI Emoji", "FreeMono",
+      "DejaVu Sans Mono", "Unifont",        "Adwaita Sans",
+      "Carlito",          "Unifont Upper",  "Symbols Nerd Font Mono",
+      "Noto Color Emoji"};
+    return fonts;
 }
 
 inline bool InstallEmojiFont()
 {
-    const fs::path font = executable_dir() / "AppleColorEmoji.ttf";
-    std::error_code ec;
+    const auto &font = GetEmojiFonts().front();
+    std::error_code ec{};
     if (!fs::is_regular_file(font, ec) || ec)
     {
-        std::cerr << "ERROR: Emoji font not found: " << font.string() << '\n';
+        std::cerr << "ERROR: Emoji font not found: " << font << '\n';
         return false;
     }
     return InstallNormalFontFileToLuna(font);

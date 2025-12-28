@@ -36,7 +36,7 @@ class string_format
         m_stream << arg;
         return *this;
     }
-    operator std::string() const
+    operator std::string() const // NOLINT
     {
         return m_stream.str();
     }
