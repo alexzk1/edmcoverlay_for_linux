@@ -545,9 +545,9 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     res.svg.svg = svgTextStream.str();
     res.drawmode = draw_task::drawmode_t::svg;
 
-#ifndef _NDEBUG
-    std::cout << res.svg.svg << std::endl;
-#endif
+    // #ifndef _NDEBUG
+    //     std::cout << res.svg.svg << std::endl;
+    // #endif
 
     return res;
 }
