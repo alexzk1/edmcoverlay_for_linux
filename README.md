@@ -66,6 +66,17 @@ def supports_svg(obj) -> bool:
     )
 ```
 
+There is method `is_emojii_supported()`, similary you can check if you can send emojii to overlay:
+```
+def supports_emojii(obj) -> bool:
+    return (
+        hasattr(obj, "is_emojii_supported")
+        and callable(getattr(obj, "is_emojii_supported"))
+        and obj.is_emojii_supported()
+    )
+
+```
+
 `lunasvg` is used to render, so details about supported tags you can find there: https://github.com/sammycage/lunasvg
 
 ## Installation

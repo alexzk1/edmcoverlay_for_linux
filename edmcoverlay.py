@@ -273,3 +273,10 @@ class Overlay:
             bool: true if this plugin can render SVG direct.
         """
         return True
+
+    def is_emojii_supported(self) -> bool:
+        """
+        Returns:
+            bool: true if this plugin can render emojii in texts.
+        """
+        return True
