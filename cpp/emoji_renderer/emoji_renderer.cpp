@@ -470,7 +470,7 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
             if (FT_Load_Glyph(face, glyph_index, options) == 0)
             {
                 const bool is_bitmap = UnicodeSymbolsIterator::classify(ch) != GlyphClass::Latin1;
-                const float scale = kHeightWidthScaleRation * static_cast<float>(font.fontSize)
+                const float scale = kHeightWidthScaleRatio * static_cast<float>(font.fontSize)
                                     / static_cast<float>(face->glyph->bitmap.rows);
                 const unsigned int advance_px = face->glyph->advance.x >> 6;
                 const unsigned int visual_width =
