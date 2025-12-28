@@ -53,15 +53,16 @@ inline fs::path ExecutableDir()
     return fs::path(buf.data()).parent_path();
 }
 
+inline const auto GetCustomDownloadedFont()
+{
+    return ExecutableDir() / "AppleColorEmoji.ttf";
+}
+
 inline const std::vector<std::string> &GetEmojiFonts()
 {
-    static const std::vector<std::string> fonts = {ExecutableDir() / "AppleColorEmoji.ttf",
-                                                   "Segoe UI Emoji",
-                                                   "Symbols Nerd Font Mono",
-                                                   "Noto Color Emoji",
-                                                   "Apple Color Emoji",
-                                                   "FreeMono",
-                                                   "Liberation Mono"};
+    static const std::vector<std::string> fonts = {
+      GetCustomDownloadedFont(), "Segoe UI Emoji", "Symbols Nerd Font Mono", "Noto Color Emoji",
+      "Apple Color Emoji",       "FreeMono",       "Liberation Mono"};
     return fonts;
 }
 
@@ -76,9 +77,9 @@ inline const std::vector<std::string> &GetTextFonts()
     return fonts;
 }
 
-inline bool InstallEmojiFont()
+inline bool InstallCustomEmojiFont()
 {
-    const auto &font = GetEmojiFonts().front();
+    const auto font = GetCustomDownloadedFont();
     std::error_code ec{};
     if (!fs::is_regular_file(font, ec) || ec)
     {
