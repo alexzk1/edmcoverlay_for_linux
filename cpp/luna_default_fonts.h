@@ -60,7 +60,6 @@ inline const auto GetCustomDownloadedFont()
 }
 
 /// @brief fonts are used to try to render <image> tag out of emoji (our custom renderer).
-/// @note Use of non-mono space can make visual wrong aligment with emojies.
 inline const std::vector<std::string> &GetEmojiFonts()
 {
     static const std::vector<std::string> fonts = {
@@ -70,6 +69,7 @@ inline const std::vector<std::string> &GetEmojiFonts()
 }
 
 /// @brief fonts are used to measure and draw <text> tags.
+/// @note Use of non-mono space can make visual wrong aligment with emojies.
 inline const std::vector<std::string> &GetTextFonts()
 {
     static const std::vector<std::string> fonts = {
