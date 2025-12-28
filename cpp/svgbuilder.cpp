@@ -72,9 +72,10 @@ std::string escape_for_svg(std::string_view in)
 }
 
 enum class GlyphClass : std::uint8_t {
-    Latin1, // 0x0000–0x00FF (1 byte UTF-8)
-    BMP,    // 0x0100–0xFFFF (2–3 bytes UTF-8)
-    Astral, // >= 0x10000 (4 bytes UTF-8)
+    Latin1,  // 0x0000–0x00FF (1 byte UTF-8)
+    Dingbat, //  >= 0x2700 && <= 0x27BF
+    BMP,     // 0x0100–0xFFFF (2–3 bytes UTF-8)
+    Astral,  // >= 0x10000 (4 bytes UTF-8)
     NotSet,
 };
 
@@ -104,9 +105,9 @@ struct SpanRange
     }
 
     [[nodiscard]]
-    bool isEmoji() const
+    bool needsCustomRender() const
     {
-        return cls == GlyphClass::Astral;
+        return cls == GlyphClass::Astral || cls == GlyphClass::Dingbat;
     }
 };
 
@@ -194,7 +195,7 @@ class Char32Iter
         }
         if (symbol >= 0x2700 && symbol <= 0x27BF)
         {
-            return GlyphClass::Astral;
+            return GlyphClass::Dingbat;
         }
         if (symbol <= 0xFFFF)
         {
@@ -316,7 +317,7 @@ class TextToSvgConverter
         const auto emojiSpans = makeSpans(line);
         for (const auto &span : emojiSpans)
         {
-            if (span.isEmoji())
+            if (span.needsCustomRender())
             {
                 Char32Iter iter(line);
                 if (!iter.rewindTo(span))
@@ -327,14 +328,14 @@ class TextToSvgConverter
 #endif
                     continue;
                 }
-                makeImage(svgOutStream, iter.symbol());
+                renderCusomImageTag(svgOutStream, iter.symbol());
                 continue;
             }
-            makeText(svgOutStream, line, span);
+            makeTextTag(svgOutStream, line, span);
         }
     }
 
-    void makeImage(std::ostringstream &svgOutStream, const char32_t symbol)
+    void renderCusomImageTag(std::ostringstream &svgOutStream, const char32_t symbol)
     {
         using namespace format_helper;
         using namespace emoji;
@@ -355,7 +356,7 @@ class TextToSvgConverter
         state.x += png.width;
     }
 
-    void makeText(std::ostringstream &svgOutStream, const std::string &line, const SpanRange &range)
+    void makeTextTag(std::ostringstream &svgOutStream, const std::string &line, const SpanRange &range)
     {
         using namespace format_helper;
         const auto sub = line.substr(range.begin, range.end - range.begin);
