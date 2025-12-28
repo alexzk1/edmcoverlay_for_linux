@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
     #include <iostream>
 #endif
 
@@ -128,7 +128,7 @@ class TextToSvgConverter
                 UnicodeSymbolsIterator iter(line);
                 if (!iter.rewindTo(span))
                 {
-#ifndef _NDEBUG
+#ifndef NDEBUG
                     std::cerr << "Something went wrong. Could not rewind to pos " << span.begin
                               << "\n";
 #endif
@@ -157,7 +157,7 @@ class TextToSvgConverter
         const auto &png = EmojiRenderer::instance().renderToPng({symbol, std::move(font)});
         if (!png.isValid())
         {
-#ifndef _NDEBUG
+#ifndef NDEBUG
             std::cerr << "Something went wrong. Could not draw emoji-png.\n";
 #endif
             return;
@@ -368,7 +368,7 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
     res.svg.svg = svgTextStream.str();
     res.drawmode = draw_task::drawmode_t::svg;
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
     std::cout << res.svg.svg << std::endl;
 #endif
 

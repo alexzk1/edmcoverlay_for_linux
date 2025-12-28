@@ -29,7 +29,7 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
         if (lunasvg_add_font_face_from_file("", false, false, path.c_str()))
         {
             installed.insert(path);
-#ifndef _NDEBUG
+#ifndef NDEBUG
             std::cout << path << " font was loaded.\n";
 #endif
             return true;
