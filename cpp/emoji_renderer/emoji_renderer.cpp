@@ -28,6 +28,10 @@
 #include <freetype/config/integer-types.h>
 
 namespace {
+/// @brief width = height * kHeightWidthScaleRatio
+/// This is correction constant.
+constexpr float kHeightWidthScaleRatio = 0.85f;
+
 const std::string kBase64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 inline std::string encodeBase64(const std::vector<unsigned char> &data)
@@ -413,7 +417,7 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
         const auto &face = library->getFace(font_path);
         if (!face)
         {
-            return 0;
+            continue;
         }
         FT_Int32 options = FT_LOAD_DEFAULT;
 
@@ -493,7 +497,10 @@ unsigned int EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
             return pen_x;
         }
     }
-    return 0u;
+
+    // Work around if we could not find valid font.
+    return static_cast<unsigned int>(text.size())
+           * static_cast<unsigned int>(static_cast<double>(font.fontSize) * kHeightWidthScaleRatio);
 }
 
 EmojiRenderer &EmojiRenderer::instance()

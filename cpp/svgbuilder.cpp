@@ -190,15 +190,7 @@ class TextToSvgConverter
         }
 
         const emoji::EmojiFontRequirement font{drawTask.text.getFinalFontSize(), GetTextFonts()};
-        const auto computed = emoji::EmojiRenderer::instance().computeWidth(font, txt);
-
-        // Work around if we could not find valid font.
-        return 0u == computed && UnicodeSymbolsIterator::classify(txt.front()) != GlyphClass::Latin1
-                 ? static_cast<unsigned int>(txt.size())
-                     * static_cast<unsigned int>(
-                       static_cast<double>(drawTask.text.getFinalFontSize())
-                       * emoji::kHeightWidthScaleRatio)
-                 : computed;
+        return emoji::EmojiRenderer::instance().computeWidth(font, txt);
     }
 };
 

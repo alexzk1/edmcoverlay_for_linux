@@ -60,6 +60,7 @@ inline const std::vector<std::string> &GetEmojiFonts()
                                                    "Symbols Nerd Font Mono",
                                                    "Noto Color Emoji",
                                                    "Apple Color Emoji",
+                                                   "FreeMono",
                                                    "Liberation Mono"};
     return fonts;
 }
@@ -70,7 +71,8 @@ inline const std::vector<std::string> &GetTextFonts()
       "Liberation Mono",  "Segoe UI Emoji", "FreeMono",
       "DejaVu Sans Mono", "Unifont",        "Adwaita Sans",
       "Carlito",          "Unifont Upper",  "Symbols Nerd Font Mono",
-      "Noto Color Emoji"};
+      "Noto Color Emoji",
+    };
     return fonts;
 }
 
