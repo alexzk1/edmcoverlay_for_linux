@@ -33,13 +33,13 @@ def supports_multiline(obj) -> bool:
     )
 ```
 * Added emoji render too.
-There is method `is_emojii_supported()`, similary you can check if you can send emojii to overlay:
+There is method `is_emoji_supported()`, similary you can check if you can send emoji to overlay:
 ```
-def supports_emojii(obj) -> bool:
+def supports_emoji(obj) -> bool:
     return (
-        hasattr(obj, "is_emojii_supported")
-        and callable(getattr(obj, "is_emojii_supported"))
-        and obj.is_emojii_supported()
+        hasattr(obj, "is_emoji_supported")
+        and callable(getattr(obj, "is_emoji_supported"))
+        and obj.is_emoji_supported()
     )
 
 ```

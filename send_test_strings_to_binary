@@ -12,10 +12,10 @@ messages=(
 
 
 messages2=(
-'{"id": "test4", "text": "You are low on fuel!!\n\tNew Ш line★▲■☯♞💰💰❔❔tabbed!!\nNew line non-tabbed!!!", "font_size": 90, "color": "green", "x": 150, "y": 330, "ttl": 15}'
+'{"id": "test4", "text": "New☯☯☯line★▲■☯♞💰💰❔❔ NOT 🚫 tabbed!!\n\tNew line tabbed!!!", "font_size": 48, "color": "green", "x": 150, "y": 330, "ttl": 15}'
 )
 
-for msg in "${messages2[@]}"; do
+for msg in "${messages[@]}"; do
     len=$(echo -n "$msg" | wc -c)
     echo -n "${len}#${msg}" | nc "$HOST" "$PORT"
 done

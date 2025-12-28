@@ -163,7 +163,7 @@ class TextToSvgConverter
             return;
         }
         svgOutStream << stringfmt(
-          R"(<image x="%u" y="%u" width="%u" height="%u" href="data:image/png;base64,%s"/>)",
+          R"(<image x="%upx" y="%upx" width="%upx" height="%upx" href="data:image/png;base64,%s"/>)",
           state.x, state.y, png.width, png.height, png.png_base64);
 
         state.x += png.width
@@ -190,7 +190,7 @@ class TextToSvgConverter
         }
 
         svgOutStream << stringfmt(
-          R"(<text x="%u" y="%u" font-size="%ipx" fill="%s" %s xml:space='preserve'>)", state.x,
+          R"(<text x="%upx" y="%upx" font-size="%upx" fill="%s" %s xml:space='preserve'>)", state.x,
           state.y + drawTask.text.getFinalFontSize().size, drawTask.text.getFinalFontSize(),
           drawTask.color, font_fam)
                      << escape_for_svg(sub) << "</text>";

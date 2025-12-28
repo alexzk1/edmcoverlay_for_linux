@@ -60,6 +60,7 @@ inline const auto GetCustomDownloadedFont()
 }
 
 /// @brief fonts are used to try to render <image> tag out of emoji (our custom renderer).
+/// @note Use of non-mono space can make visual wrong aligment with emojies.
 inline const std::vector<std::string> &GetEmojiFonts()
 {
     static const std::vector<std::string> fonts = {
@@ -72,10 +73,7 @@ inline const std::vector<std::string> &GetEmojiFonts()
 inline const std::vector<std::string> &GetTextFonts()
 {
     static const std::vector<std::string> fonts = {
-      "Liberation Mono",  "Segoe UI Emoji", "FreeMono",
-      "DejaVu Sans Mono", "Unifont",        "Adwaita Sans",
-      "Carlito",          "Unifont Upper",  "Symbols Nerd Font Mono",
-      "Noto Color Emoji",
+      "Liberation Mono", "DejaVu Sans Mono", "Unifont", "Symbols Nerd Font Mono", "FreeMono",
     };
     return fonts;
 }

@@ -274,9 +274,9 @@ class Overlay:
         """
         return True
 
-    def is_emojii_supported(self) -> bool:
+    def is_emoji_supported(self) -> bool:
         """
         Returns:
-            bool: true if this plugin can render emojii in texts.
+            bool: true if this plugin can render emoji in texts.
         """
         return True

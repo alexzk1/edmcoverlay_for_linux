@@ -12,6 +12,7 @@
 #include <pngconf.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -297,6 +298,7 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
         {
             continue;
         }
+        FT_Set_Transform(face, nullptr, nullptr);
 
         FT_Int32 options = FT_LOAD_RENDER;
 
@@ -418,7 +420,8 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
         {
             continue;
         }
-        FT_Int32 options = FT_LOAD_DEFAULT;
+        FT_Set_Transform(face, nullptr, nullptr);
+        FT_Int32 options = FT_LOAD_NO_BITMAP;
 
         if (library->isColorEmojiFont(face))
         {
@@ -450,12 +453,14 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
             FT_Set_Pixel_Sizes(face, 0, font.fontSize.size);
         }
 
-        float pen_x = 0;
+        FT_Pos pen_x = 0;
         FT_UInt prev = 0;
 
         bool all_ok = true;
         for (const char32_t ch : text)
         {
+            assert(!SpanRange::needsCustomRender(UnicodeSymbolsIterator::classify(ch))
+                   && "Glyphs for custom rendering should not come here.");
             const FT_UInt glyph_index = FT_Get_Char_Index(face, ch);
             if (glyph_index == 0)
             {
@@ -465,21 +470,13 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
 
             if (FT_Load_Glyph(face, glyph_index, options) == 0)
             {
-                const bool is_bitmap = UnicodeSymbolsIterator::classify(ch) == GlyphClass::BMP;
-                const auto scale = static_cast<float>(font.fontSize.size)
-                                   / static_cast<float>(face->glyph->bitmap.rows);
-                const auto advance_px = static_cast<float>(face->glyph->advance.x >> 6);
-                const float visual_width =
-                  is_bitmap ? static_cast<float>(face->glyph->bitmap.width) * scale : advance_px;
-
-                pen_x += visual_width;
-
-                if (prev && !is_bitmap)
+                pen_x += face->glyph->advance.x >> 6;
+                if (prev)
                 {
                     FT_Vector kern;
                     if (FT_Get_Kerning(face, prev, glyph_index, FT_KERNING_DEFAULT, &kern) == 0)
                     {
-                        pen_x += static_cast<float>(kern.x >> 6);
+                        pen_x += kern.x >> 6;
                     }
                 }
             }
@@ -498,9 +495,7 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
     }
 
     // Work around if we could not find valid font.
-    return {static_cast<unsigned int>(text.size())
-              * static_cast<unsigned int>(static_cast<double>(font.fontSize.size)),
-            ""};
+    return {static_cast<unsigned int>(text.size()) * font.fontSize.size, ""};
 }
 
 EmojiRenderer &EmojiRenderer::instance()
