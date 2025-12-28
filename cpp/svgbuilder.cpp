@@ -2,7 +2,6 @@
 
 #include "drawables.h"
 #include "emoji_renderer.hpp"
-#include "exec_exit.h"
 #include "luna_default_fonts.h"
 #include "strfmt.h"
 #include "strutils.h"
@@ -10,7 +9,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -94,13 +92,14 @@ class TextToSvgConverter
         {
             state.x = drawTask.x;
             processSingleLine(svgOutStream, line);
-            state.y += static_cast<unsigned int>(kYSpacing * drawTask.text.getFinalFontSize());
+            state.y +=
+              static_cast<int>(kYSpacing * static_cast<float>(drawTask.text.getFinalFontSize()));
         }
     }
 
   private:
-    static constexpr double kXSpacing = 1.03;
-    static constexpr double kYSpacing = 1.05;
+    static constexpr float kXSpacing = 1.03f;
+    static constexpr float kYSpacing = 1.05f;
 
     struct RenderState
     {
@@ -159,7 +158,7 @@ class TextToSvgConverter
           R"(<image x="%u" y="%u" width="%u" height="%u" href="data:image/png;base64,%s"/>)",
           state.x, state.y, png.width, png.height, png.png_base64);
 
-        state.x += static_cast<unsigned int>(png.width * kXSpacing);
+        state.x += static_cast<int>(static_cast<float>(png.width) * kXSpacing);
     }
 
     void makeTextTag(std::ostringstream &svgOutStream, const std::string &line,
@@ -177,7 +176,7 @@ class TextToSvgConverter
           state.y + drawTask.text.getFinalFontSize(), drawTask.text.getFinalFontSize(),
           drawTask.color, font_fam)
                      << escape_for_svg(sub) << "</text>";
-        state.x += static_cast<unsigned int>(measureWidhtOfText(sub) * kXSpacing);
+        state.x += static_cast<int>(static_cast<float>(measureWidhtOfText(sub)) * kXSpacing);
     }
 
     [[nodiscard]]
@@ -269,6 +268,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
 
 } // namespace
 
+// NOLINTNEXTLINE
 SvgBuilder::SvgBuilder(const int windowWidth, const int windowHeight,
                        draw_task::drawitem_t drawTask) :
     windowWidth(windowWidth),
