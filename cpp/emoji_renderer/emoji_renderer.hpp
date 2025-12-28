@@ -12,7 +12,7 @@ namespace emoji {
 
 /// @brief width = height * kHeightWidthScaleRation
 /// This is correction constant.
-constexpr double kHeightWidthScaleRation = 0.85;
+constexpr float kHeightWidthScaleRation = 0.85f;
 
 struct EmojiFontRequirement
 {

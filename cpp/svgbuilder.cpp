@@ -6,6 +6,7 @@
 #include "luna_default_fonts.h"
 #include "strfmt.h"
 #include "strutils.h"
+#include "unicode_splitter.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -71,206 +72,6 @@ std::string escape_for_svg(std::string_view in)
     return out;
 }
 
-enum class GlyphClass : std::uint8_t {
-    Latin1,  // 0x0000–0x00FF (1 byte UTF-8)
-    Dingbat, //  >= 0x2700 && <= 0x27BF
-    BMP,     // 0x0100–0xFFFF (2–3 bytes UTF-8)
-    Astral,  // >= 0x10000 (4 bytes UTF-8)
-    NotSet,
-};
-
-enum class SpanPosition : std::uint8_t {
-    FirstSpan,
-    InsideStringSpan,
-    NotSet,
-};
-
-struct SpanRange
-{
-    std::size_t begin{0u};
-    std::size_t end{0u};
-    GlyphClass cls{GlyphClass::NotSet};
-    SpanPosition position{SpanPosition::NotSet};
-
-    SpanRange &setEnd(std::size_t e)
-    {
-        end = e;
-        return *this;
-    }
-
-    [[nodiscard]]
-    bool isValid() const
-    {
-        return end > begin;
-    }
-
-    [[nodiscard]]
-    bool needsCustomRender() const
-    {
-        return cls == GlyphClass::Astral || cls == GlyphClass::Dingbat;
-    }
-};
-
-/// @brief Per symbol string iterator. Symbols can be 1-4 bytes.
-class Char32Iter
-{
-  public:
-    explicit Char32Iter(const std::string &s) :
-        src(s)
-    {
-    }
-
-    bool rewindTo(const SpanRange &range)
-    {
-        next_byte_index = range.begin;
-        seq_len = 0;
-        cp = 0;
-
-        return next() && classify() == range.cls;
-    }
-
-    /// @brief Position this object on next symbol in string.
-    /// @returns false if end-of-string reached, object remains unchanged.
-    bool next()
-    {
-        if (next_byte_index >= src.size())
-        {
-            return false;
-        }
-
-        const auto byte = static_cast<unsigned char>(src[next_byte_index]);
-        if (byte < 0x80)
-        {
-            cp = byte;
-            seq_len = 1;
-        }
-        else if ((byte & 0xE0) == 0xC0)
-        {
-            cp = byte & 0x1F;
-            seq_len = 2;
-        }
-        else if ((byte & 0xF0) == 0xE0)
-        {
-            cp = byte & 0x0F;
-            seq_len = 3;
-        }
-        else if ((byte & 0xF8) == 0xF0)
-        {
-            cp = byte & 0x07;
-            seq_len = 4;
-        }
-        else
-        {
-            cp = 0xFFFD;
-            seq_len = 1;
-        }
-
-        for (std::size_t j = 1; j < seq_len && next_byte_index + j < src.size(); ++j)
-        {
-            cp = (cp << 6) | (src[next_byte_index + j] & 0x3F);
-        }
-
-        next_byte_index += seq_len;
-        return true;
-    }
-
-    ///@returns classification of the current positioned symbol.
-    [[nodiscard]]
-    GlyphClass classify() const
-    {
-        if (seq_len == 0u)
-        {
-            return GlyphClass::NotSet;
-        }
-        return classify(symbol());
-    }
-
-    ///@returns classification of the given symbol.
-    [[nodiscard]]
-    static GlyphClass classify(char32_t symbol)
-    {
-        if (symbol <= 0x00FF)
-        {
-            return GlyphClass::Latin1;
-        }
-        if (symbol >= 0x2700 && symbol <= 0x27BF)
-        {
-            return GlyphClass::Dingbat;
-        }
-        if (symbol <= 0xFFFF)
-        {
-            return GlyphClass::BMP;
-        }
-        return GlyphClass::Astral;
-    }
-
-    /// @returns current symbol, it should be used after next().
-    [[nodiscard]]
-    char32_t symbol() const
-    {
-        return cp;
-    }
-
-    /// @returns byte offset of the first byte of THIS symbol in the string.
-    [[nodiscard]]
-    std::size_t getStartIndex() const
-    {
-        return next_byte_index - seq_len;
-    }
-
-    /// @returns byte offset **immediately after this symbol** (start of next symbol).
-    [[nodiscard]]
-    std::size_t getEndIndex() const
-    {
-        return next_byte_index;
-    }
-
-  private:
-    const std::string &src;
-    std::size_t next_byte_index{0u};
-    char32_t cp{0};
-    std::size_t seq_len{0u};
-};
-
-/// @brief Detects chains of code pages in string.
-std::vector<SpanRange> makeSpans(const std::string &text)
-{
-    std::vector<SpanRange> spans;
-    spans.reserve(5);
-    bool first = true;
-
-    SpanRange current_span;
-    for (Char32Iter iter(text); iter.next();)
-    {
-        const auto cls = iter.classify();
-        if (first)
-        {
-            current_span = {iter.getStartIndex(), 0u, cls, SpanPosition::FirstSpan};
-            first = false;
-            continue;
-        }
-
-        // Astral characters must be 1 per span as we handle them differently.
-        if (cls == GlyphClass::Astral || cls != current_span.cls)
-        {
-            spans.emplace_back(current_span.setEnd(iter.getStartIndex()));
-            current_span = {iter.getStartIndex(), 0u, cls,
-                            SpanPosition::InsideStringSpan}; // Pointing to next symbol.
-        }
-    }
-
-    if (!first)
-    {
-        auto span = current_span.setEnd(text.size());
-        if (span.isValid())
-        {
-            spans.emplace_back(span);
-        }
-    }
-
-    return spans;
-}
-
 class TextToSvgConverter
 {
   public:
@@ -293,12 +94,12 @@ class TextToSvgConverter
         {
             state.x = drawTask.x;
             processSingleLine(svgOutStream, line);
-            state.y += kYSpacing * drawTask.text.getFinalFontSize();
+            state.y += static_cast<unsigned int>(kYSpacing * drawTask.text.getFinalFontSize());
         }
     }
 
   private:
-    static constexpr double kXSpacing = 1.05;
+    static constexpr double kXSpacing = 1.03;
     static constexpr double kYSpacing = 1.05;
 
     struct RenderState
@@ -319,7 +120,7 @@ class TextToSvgConverter
         {
             if (span.needsCustomRender())
             {
-                Char32Iter iter(line);
+                UnicodeSymbolsIterator iter(line);
                 if (!iter.rewindTo(span))
                 {
 #ifndef _NDEBUG
@@ -328,14 +129,19 @@ class TextToSvgConverter
 #endif
                     continue;
                 }
-                renderCusomImageTag(svgOutStream, iter.symbol());
+                // We can render 1 symbol at once, but span may have couple of the same class.
+                do
+                {
+                    renderCusomSingleSymbolImageTag(svgOutStream, iter.symbol());
+                }
+                while (iter.next() && span.cls == iter.classify());
                 continue;
             }
             makeTextTag(svgOutStream, line, span);
         }
     }
 
-    void renderCusomImageTag(std::ostringstream &svgOutStream, const char32_t symbol)
+    void renderCusomSingleSymbolImageTag(std::ostringstream &svgOutStream, const char32_t symbol)
     {
         using namespace format_helper;
         using namespace emoji;
@@ -353,10 +159,11 @@ class TextToSvgConverter
           R"(<image x="%u" y="%u" width="%u" height="%u" href="data:image/png;base64,%s"/>)",
           state.x, state.y, png.width, png.height, png.png_base64);
 
-        state.x += png.width;
+        state.x += static_cast<unsigned int>(png.width * kXSpacing);
     }
 
-    void makeTextTag(std::ostringstream &svgOutStream, const std::string &line, const SpanRange &range)
+    void makeTextTag(std::ostringstream &svgOutStream, const std::string &line,
+                     const SpanRange &range)
     {
         using namespace format_helper;
         const auto sub = line.substr(range.begin, range.end - range.begin);
@@ -370,7 +177,7 @@ class TextToSvgConverter
           state.y + drawTask.text.getFinalFontSize(), drawTask.text.getFinalFontSize(),
           drawTask.color, font_fam)
                      << escape_for_svg(sub) << "</text>";
-        state.x += measureWidhtOfText(sub);
+        state.x += static_cast<unsigned int>(measureWidhtOfText(sub) * kXSpacing);
     }
 
     [[nodiscard]]
@@ -378,7 +185,7 @@ class TextToSvgConverter
     {
         std::vector<char32_t> txt;
         txt.reserve(text.size());
-        for (Char32Iter iter(text); iter.next();)
+        for (UnicodeSymbolsIterator iter(text); iter.next();)
         {
             txt.emplace_back(iter.symbol());
         }
@@ -387,7 +194,7 @@ class TextToSvgConverter
         const auto computed = emoji::EmojiRenderer::instance().computeWidth(font, txt);
 
         // Work around if we could not find valid font.
-        return 0u == computed && Char32Iter::classify(txt.front()) == GlyphClass::BMP
+        return 0u == computed && UnicodeSymbolsIterator::classify(txt.front()) == GlyphClass::BMP
                  ? static_cast<unsigned int>(txt.size())
                      * static_cast<unsigned int>(
                        static_cast<double>(drawTask.text.getFinalFontSize())
