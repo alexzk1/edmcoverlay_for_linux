@@ -41,6 +41,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
     asio
     common
     emoji_renderer
-    -lpthread
+    Threads::Threads
 )
 
