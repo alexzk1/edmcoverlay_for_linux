@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #ifndef NDEBUG
@@ -180,10 +181,10 @@ class TextToSvgConverter
         const auto sub = line.substr(range.begin, range.end - range.begin);
 
         const LambdaVisitor getMeasuredFontFam{
-          [&range](const std::filesystem::path &) {
-              return range.cls == GlyphClass::Latin1
-                       ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
-                       : "";
+          [](const std::filesystem::path &) {
+              // TODO: if renderer selected external font, pobably, we could extract font-family
+              // from it.
+              return std::string{};
           },
           [](const std::string &fam) {
               // This is "family font name" (not a file name) so we can use for luna-svg.

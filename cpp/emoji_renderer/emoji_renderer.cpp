@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include <freetype/config/integer-types.h>
