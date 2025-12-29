@@ -1,16 +1,27 @@
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
-include(FetchContent)
+
+# Download CPM.cmake (package manager for cmake)
+file(
+  DOWNLOAD
+  https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
+)
+include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-FetchContent_Declare(
-    lunasvg
-    GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
-    GIT_TAG v3.5.0  # Specify the desired branch or tag
+
+CPMAddPackage(
+  URI "gh:nlohmann/json@3.12.0"
+  OPTIONS "JSON_BuildTests OFF"
 )
-FetchContent_MakeAvailable(lunasvg)
+
+CPMAddPackage(
+  URI "gh:sammycage/lunasvg@3.5.0"
+  OPTIONS "USE_SYSTEM_PLUTOVG OFF"
+)
 
 project(edmc_linux_overlay LANGUAGES CXX)
 
@@ -48,6 +59,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
     ${X11_Xfixes_LIB}
     ${X11_Xext_LIB}
     ${X11_Xrender_LIB}
+    nlohmann_json::nlohmann_json
     lunasvg::lunasvg
     common
     emoji_renderer

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "font_size.hpp"
-#include "json.hpp"
+
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -97,6 +99,7 @@ struct drawitem_t
         }
 
         /// @returns actual font size to use depend on fields set.
+        [[nodiscard]]
         font_size::FontPixelSize getFinalFontSize() const
         {
             // large = normal + kDeltaFontDifference
@@ -128,6 +131,7 @@ struct drawitem_t
             return tie(*this) == tie(other);
         }
 
+        [[nodiscard]]
         font_size::FontPixelSize getFinalFontSize() const
         {
             return vector_font_size.size > 0 ? vector_font_size
