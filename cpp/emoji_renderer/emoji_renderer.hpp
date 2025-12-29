@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cm_ctors.h"
+#include "font_path_or_family.hpp"
 #include "font_size.hpp"
 
 #include <cstdint>
@@ -14,7 +15,7 @@ namespace emoji {
 struct EmojiFontRequirement
 {
     font_size::FontPixelSize fontSize;
-    std::vector<std::string> fontFaceOrPath;
+    std::vector<FontPathOrFamily> fontFaceOrPath;
 
     bool operator<(const EmojiFontRequirement &other) const
     {
@@ -67,7 +68,7 @@ class EmojiRenderer
     {
         unsigned int computedWidth;
         // Font selected or empty if fallback was used.
-        std::string fontUsedToMeasure;
+        FontPathOrFamily fontUsedToMeasure;
     };
 
     NO_COPYMOVE(EmojiRenderer);

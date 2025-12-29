@@ -1,6 +1,7 @@
 #include "emoji_renderer.hpp"
 
 #include "freetype/fttypes.h"
+#include "lambda_visitors.hpp"
 #include "opaque_ptr.h"
 #include "unicode_splitter.hpp"
 
@@ -194,6 +195,19 @@ std::string findFontFile(const std::string &familyName)
     return file;
 }
 
+std::string toKey(const FontPathOrFamily &key)
+{
+    static const LambdaVisitor visitor{
+      [](const std::string &s) {
+          return s;
+      },
+      [](const std::filesystem::path &p) {
+          return p.string();
+      },
+    };
+    return std::visit(visitor, key);
+}
+
 } // namespace
 
 namespace emoji {
@@ -219,17 +233,23 @@ class EmojiRenderer::FtLibrary
     }
 
     [[nodiscard]]
-    opaque_ptr<FT_Face_Type> loadFace(const std::string &pathOrName) const
+    opaque_ptr<FT_Face_Type> loadFace(const FontPathOrFamily &pathOrName) const
     {
         return AllocateOpaque<FT_Face_Type>(FT_Done_Face, [&pathOrName, this]() -> FT_Face {
             if (!libraryHandle)
             {
                 return nullptr;
             }
-            const auto file =
-              std::filesystem::exists(pathOrName) && std::filesystem::is_regular_file(pathOrName)
-                ? pathOrName
-                : findFontFile(pathOrName);
+            static const LambdaVisitor findFilePathVisitor = {
+              [](const std::filesystem::path &pth) {
+                  return pth.string();
+              },
+              [](const std::string &fam) {
+                  return findFontFile(fam);
+              },
+            };
+            const auto file = std::visit(findFilePathVisitor, pathOrName);
+
             FT_Face face{nullptr};
             if (FT_New_Face(libraryHandle, file.c_str(), 0, &face) == 0)
             {
@@ -241,9 +261,10 @@ class EmojiRenderer::FtLibrary
 
   public:
     [[nodiscard]]
-    opaque_ptr<FT_Face_Type> getFace(const std::string &pathOrName)
+    opaque_ptr<FT_Face_Type> getFace(const FontPathOrFamily &pathOrName)
     {
-        auto it = faces.find(pathOrName);
+        const auto key = toKey(pathOrName);
+        auto it = faces.find(key);
         if (it != faces.end())
         {
             return it->second;
@@ -251,7 +272,7 @@ class EmojiRenderer::FtLibrary
         auto ptr = loadFace(pathOrName);
         if (ptr)
         {
-            faces[pathOrName] = ptr;
+            faces[key] = ptr;
         }
         return ptr;
     }
@@ -495,7 +516,7 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
     }
 
     // Work around if we could not find valid font.
-    return {static_cast<unsigned int>(text.size()) * font.fontSize.size, ""};
+    return {static_cast<unsigned int>(text.size()) * font.fontSize.size, std::string{}};
 }
 
 EmojiRenderer &EmojiRenderer::instance()

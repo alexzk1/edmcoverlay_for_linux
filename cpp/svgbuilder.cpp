@@ -2,6 +2,7 @@
 
 #include "drawables.h"
 #include "emoji_renderer.hpp"
+#include "lambda_visitors.hpp"
 #include "luna_default_fonts.h"
 #include "strfmt.h"
 #include "strutils.h"
@@ -178,21 +179,22 @@ class TextToSvgConverter
         using namespace format_helper;
         const auto sub = line.substr(range.begin, range.end - range.begin);
 
+        const LambdaVisitor getMeasuredFontFam{
+          [&range](const std::filesystem::path &) {
+              return range.cls == GlyphClass::Latin1
+                       ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
+                       : "";
+          },
+          [](const std::string &fam) {
+              // This is "family font name" (not a file name) so we can use for luna-svg.
+              return stringfmt(R"(font-family="%s")", fam);
+          },
+        };
         const auto measure = measureWidhtOfText(sub);
-        std::string font_fam = range.cls == GlyphClass::Latin1
-                                 ? stringfmt(R"(font-family="%s")", GetTextFonts().front())
-                                 : "";
-        if (!measure.fontUsedToMeasure.empty()
-            && !std::filesystem::exists(measure.fontUsedToMeasure))
-        {
-            // This is "family font name" (not a file name) so we can use for luna-svg.
-            font_fam = stringfmt(R"(font-family="%s")", measure.fontUsedToMeasure);
-        }
-
         svgOutStream << stringfmt(
           R"(<text x="%upx" y="%upx" font-size="%upx" fill="%s" %s xml:space='preserve'>)", state.x,
           state.y + drawTask.text.getFinalFontSize().size, drawTask.text.getFinalFontSize(),
-          drawTask.color, font_fam)
+          drawTask.color, std::visit(getMeasuredFontFam, measure.fontUsedToMeasure))
                      << escape_for_svg(sub) << "</text>";
         state.x += measure.computedWidth;
     }
