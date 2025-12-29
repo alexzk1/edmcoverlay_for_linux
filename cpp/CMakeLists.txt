@@ -4,20 +4,12 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+project(edmc_linux_overlay LANGUAGES CXX)
+include(cmake_incl/required_system_libraries.cmake)
+
 include(cmake_incl/cpm_install.cmake)
 include(cmake_incl/libraries.cmake)
 include(cmake_incl/asio.cmake)
-
-project(edmc_linux_overlay LANGUAGES CXX)
-
-#Required packages, please install it using package manager, on Ubuntu it may have prefix "lib"
-#or suffix "-dev" or both.
-
-find_package(X11 COMPONENTS Xfixes Xext Xrender REQUIRED)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_VERBOSE_MAKEFILE ON)
 
 file(GLOB PROJECT_SOURCES
         *.h
