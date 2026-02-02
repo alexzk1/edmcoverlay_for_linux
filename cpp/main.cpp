@@ -2,7 +2,6 @@
 
 #include "asio_accept_tcp_server.hpp"
 #include "drawables.h"
-#include "json_message.hh"
 #include "logic_context.hpp"
 #include "runners.h"
 #include "strutils.h"
