@@ -23,15 +23,25 @@ class PersistentSocket:
             logger.error(f"Failed to connect to {self.host}:{self.port} - {e}")
             return None
 
+    def connect(self) -> bool:
+        for attempt in range(3):
+            if self._sock is None:
+                self._sock = self._create_socket()
+                if self._sock is None:
+                    logger.debug(f"Server not ready, waiting... (attempt {attempt})")
+                    time.sleep(0.1)
+                    continue
+            else:
+                break
+        return self._sock is not None
+
     def send(self, data: bytes) -> bool:
         """Tries to send data with automatic (re) connection when needed.
         Returns true if data was sent.
         """
+        # raise Exception("TEST")
         for attempt in range(4):
-            if self._sock is None:
-                self._sock = self._create_socket()
-
-            if self._sock:
+            if self.connect() and self._sock:
                 try:
                     self._sock.sendall(data)
                     return True

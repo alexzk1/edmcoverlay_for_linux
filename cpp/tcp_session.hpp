@@ -37,7 +37,7 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
     {
         auto self(shared_from_this());
         asio::async_read_until( // NOLINT
-          socket_, stream_buffer_, '#', [this, self](std::error_code ec, std::size_t length) {
+          socket_, stream_buffer_, '#', [this, self](std::error_code ec, std::size_t /*length*/) {
               if (!ec)
               {
                   std::istream is(&stream_buffer_);
@@ -64,25 +64,18 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
     void readBody(std::size_t size)
     {
         auto self(shared_from_this());
+        const std::size_t to_read =
+          (size > stream_buffer_.size()) ? (size - stream_buffer_.size()) : 0;
         asio::async_read(socket_, // NOLINT
                          stream_buffer_,
-                         asio::transfer_exactly(size - stream_buffer_.size()), // NOLINT
+                         asio::transfer_exactly(to_read), // NOLINT
                          [this, self, size](std::error_code ec, std::size_t /*length*/) {
                              if (!ec)
                              {
                                  std::string body;
-                                 body.reserve(size);
+                                 body.resize(size);
                                  std::istream is(&stream_buffer_);
-
-                                 char c = 0;
-                                 for (std::size_t i = 0; i < size; ++i)
-                                 {
-                                     if (is.get(c))
-                                     {
-                                         body += c;
-                                     }
-                                 }
-
+                                 is.read(&body[0], size);
                                  process_payload(body);
 
                                  // Keep-Alive!

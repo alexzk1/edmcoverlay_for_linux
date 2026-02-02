@@ -14,6 +14,9 @@ from typing import Optional
 
 from persistent_socket import PersistentSocket
 
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 5010
+
 
 def check_game_running():
     return monitor.game_running()
@@ -33,8 +36,8 @@ class OverlayImpl:
 
     def __init__(
         self,
-        server: str = "127.0.0.1",
-        port: int = 5010,
+        server: str = SERVER_IP,
+        port: int = SERVER_PORT,
     ):
         logger.info("Loading implementation details...")
         with self.__lock:
@@ -148,11 +151,16 @@ class OverlayImpl:
         }
         self._send2bin(owner, msg)
 
+    def closeConnection(self):
+        self._connection.close()
+
+    def connect(self):
+        return self._connection.connect()
+
 
 class Overlay:
     __caller_path: str = ""
     __token: str = ""
-    __overlay: OverlayImpl
 
     def __init__(self) -> None:
         self.__token = secrets.token_hex(4)
@@ -243,7 +251,7 @@ class Overlay:
         )
 
     def connect(self) -> bool:
-        return True
+        return self.__overlay.connect()
 
     def is_multiline_supported(self) -> bool:
         """

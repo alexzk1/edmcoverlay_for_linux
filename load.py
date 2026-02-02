@@ -1,5 +1,6 @@
 """Totally definitely EDMCOverlay."""
 
+import socket
 import time
 import tkinter as tk
 from pathlib import Path
@@ -58,6 +59,7 @@ def __start_overlay():
     global __iHideButDoNotStopOverlay
 
     if not __overlay_process:
+        __the_overlay.closeConnection()
         logger.info("Starting overlay.")
         cmd = [
             __find_overlay_binary(),
@@ -70,7 +72,30 @@ def __start_overlay():
             cmd.append("EliteDangerous64.exe")
 
         __overlay_process = Popen(cmd)
-        time.sleep(2)
+
+        port = edmcoverlay.SERVER_PORT
+        host = edmcoverlay.SERVER_IP
+
+        server_ready = False
+        for i in range(20):
+            try:
+                with socket.create_connection((host, port), timeout=0.5) as s:
+                    server_ready = True
+                    break
+            except (socket.error, ConnectionRefusedError):
+                # Если бинарник упал, нет смысла ждать
+                if __overlay_process.poll() is not None:
+                    logger.error("Overlay binary died during startup.")
+                    break
+                time.sleep(0.5)
+
+        if not server_ready:
+            logger.error(
+                "Overlay binary started but port 5010 is still closed after 10s."
+            )
+            return
+
+        logger.info("Server is up! Sending intro.")
         tmp = edmcoverlay.Overlay()
         tmp.send_message(
             "edmcintro",
@@ -157,6 +182,7 @@ def __start_overlay():
 def __stop_overlay():
     global __overlay_process
     if __overlay_process:
+        __the_overlay.closeConnection()
         logger.info("Stopping overlay binary.")
         __the_overlay._stop()
         time.sleep(1)
