@@ -94,7 +94,7 @@ class ConfigVars:
         """Loads stored settings."""
 
         loaded_str = config.get_str(self.__json_config_name)
-        if loaded_str is not None:
+        if loaded_str is not None and loaded_str != "":
             obj = json.loads(loaded_str)
             for m in self.__getJson2FieldMapper():
                 if m.json_name in obj:
