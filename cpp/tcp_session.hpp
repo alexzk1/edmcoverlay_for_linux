@@ -53,6 +53,7 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
                       {
                           std::cerr << "Could not parse length prior # sign in packet."
                                     << std::endl;
+                          socket_.close();
                       }
                   }
               }
