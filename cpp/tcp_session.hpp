@@ -87,7 +87,7 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
 
                                  // Keep-Alive!
                                  // TODO: uncomment code to keep connection
-                                 // read_header();
+                                 readHeader();
                              }
                          });
     }
