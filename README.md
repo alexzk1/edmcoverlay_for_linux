@@ -87,7 +87,7 @@ def supports_svg(obj) -> bool:
   - NB: you *must* name the directory `edmcoverlay`, not `edmcoverlay_for_linux`. You may clone repo elsewhere and symlink it as `edmcoverlay` to the plugins' directory. This is required because all other plugins use this name to access overlay (some are using `EDMCOverlay` naming too).
 - Install the dependencies (mostly X11 development headers; on Ubuntu,
   the `xorg-dev` package may be sufficient), `cmake`.
-- Run script `create_binary.sh` it will handle all needed.
+- Run script `create_binary.sh` it will handle all needed. You can edit that script to download emoji font if you don't have one installed (see comments inside).
 - In the EDMC settings, configure the size and position of the overlay, default fonts' sizes, sizes per plugin.
 
 ## Dependencies
