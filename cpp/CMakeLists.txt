@@ -38,7 +38,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
     ${X11_Xrender_LIB}
     nlohmann_json::nlohmann_json
     lunasvg::lunasvg
-    asio
+    asio_lib
     common
     emoji_renderer
     Threads::Threads
