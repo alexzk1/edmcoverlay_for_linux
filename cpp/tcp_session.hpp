@@ -105,7 +105,7 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
         }
         catch (...)
         {
-            std::cerr << "Json parse failed with unknown reason." << std::endl;
+            std::cerr << "Json parse failed with unknown reason." << "\n" << json_str << std::endl;
             incoming_draws.clear();
         }
 
