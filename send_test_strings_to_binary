@@ -21,3 +21,7 @@ messages2=(
         echo -n "${len}#${msg}"
     done
 } | nc "$HOST" "$PORT" -c
+
+
+echo -n "ERROR#broken" | nc "$HOST" "$PORT"
+echo "Should fail"

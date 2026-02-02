@@ -49,11 +49,13 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
                           const std::size_t body_size = std::stoul(header);
                           readBody(body_size);
                       }
-                      catch (...)
+                      catch (const std::exception &e)
                       {
-                          std::cerr << "Could not parse length prior # sign in packet."
-                                    << std::endl;
-                          socket_.close();
+                          std::cerr << "PROTOCOL ERROR: Invalid length string '" << header
+                                    << "' Error: " << e.what() << std::endl;
+                          stream_buffer_.consume(stream_buffer_.size());
+                          std::error_code ignore_ec;
+                          socket_.close(ignore_ec);
                       }
                   }
               }
@@ -97,7 +99,8 @@ class TcpSession : public std::enable_shared_from_this<TcpSession>
         }
         catch (std::exception &e)
         {
-            std::cerr << "Json parse failed with message: " << e.what() << std::endl;
+            std::cerr << "Json parse failed with message: " << e.what() << "\n"
+                      << json_str << std::endl;
             incoming_draws.clear();
         }
         catch (...)
