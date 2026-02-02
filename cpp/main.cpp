@@ -1,36 +1,34 @@
 // this file was heavy simplified by alexzkhr@gmail.com in 2021
 
+#include "asio_accept_tcp_server.hpp"
 #include "drawables.h"
 #include "json_message.hh"
+#include "logic_context.hpp"
 #include "runners.h"
-#include "socket.hh"
 #include "strutils.h"
-#include "svgbuilder.h"
 #include "xoverlayoutput.h"
 
-#include <stdlib.h>
+#include <asio.hpp> //NOLINT
+#include <stdlib.h> //NOLINT
 
-#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstddef>
 #include <exception>
 #include <functional>
 #include <iostream>
-#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <utility>
 
 namespace {
 
 const std::string windowClassName = "edmc_linux_overlay_class";
 constexpr unsigned short port = 5010;
 
-std::shared_ptr<std::thread> serverThread{nullptr};
+std::shared_ptr<std::thread> serverAcceptThread{nullptr};
 void sighandler(int signum)
 {
     std::cout << "edmc_linux_overlay: got signal " << signum << std::endl;
@@ -38,40 +36,10 @@ void sighandler(int signum)
     if ((signum == SIGINT) || (signum == SIGTERM))
     {
         std::cout << "edmc_linux_overlay: SIGINT/SIGTERM, exiting" << std::endl;
-        serverThread.reset();
-        exit(0);
+        serverAcceptThread.reset();
     }
 }
 
-void removeRenamedDuplicates(draw_task::draw_items_t &src)
-{
-    for (auto iter = src.begin(); iter != std::prev(src.end());)
-    {
-        const auto dup = std::find_if(std::next(iter), src.end(), [&iter](const auto &item) {
-            return item.second.isEqualStoredData(iter->second);
-        });
-
-        if (dup == src.end())
-        {
-            ++iter;
-        }
-        else
-        {
-            const bool rendered = iter->second.already_rendered || dup->second.already_rendered;
-            if (iter->second.ttl.created_at < dup->second.ttl.created_at)
-            {
-                dup->second.already_rendered = rendered;
-                iter = src.erase(iter);
-            }
-            else
-            {
-                iter->second.already_rendered = rendered;
-                src.erase(dup);
-                ++iter;
-            }
-        }
-    }
-}
 } // namespace
 
 /*
@@ -119,101 +87,33 @@ int main(int argc, char *argv[])
     drawer.flushFrame();
     // std::cout << "edmcoverlay2: overlay ready." << std::endl;
 
-    const auto mut = std::make_shared<std::mutex>();
     draw_task::draw_items_t allDraws;
+    OutputContext outputContext{std::make_shared<std::mutex>(), allDraws};
 
-    // FIXME: replace all that by boost:asio
-    serverThread = utility::startNewRunner(
-      [&mut, &allDraws, window_height, window_width](const auto &should_close_ptr) {
-          const std::shared_ptr<tcp_server_t> server(new tcp_server_t(port), [](tcp_server_t *p) {
-              if (p)
-              {
-                  // have no idea why it cannot be called from server destructor, but ok
-                  // let's do wrapper
-                  p->close();
-                  delete p;
-              }
-          });
-
-          while (!(*should_close_ptr))
+    serverAcceptThread = utility::startNewRunner(
+      [&outputContext, window_height, window_width](const auto &should_close_ptr) {
+          try
           {
-              auto socket = server->accept_autoclose(should_close_ptr);
-              if (!socket)
+              asio::io_context io_context; // NOLINT
+              const AsioAcceptTcpServer server(
+                io_context, port,
+                LogicContext{window_width, window_height, outputContext, should_close_ptr});
+              while (!(*should_close_ptr))
               {
-                  break;
+                  io_context.run_for(250ms); // NOLINT
               }
-
-              // Let the while() continue and start to listen back ASAP.
-              std::thread([socket = std::move(socket), &allDraws, mut, should_close_ptr,
-                           window_height, window_width]() {
-                  try
-                  {
-                      const std::string request = read_response(*socket);
-                      // std::cout << "Request: " << request << std::endl;
-
-                      draw_task::draw_items_t incoming_draws;
-                      try
-                      {
-                          incoming_draws = draw_task::parseJsonString(request);
-                      }
-                      catch (std::exception &e)
-                      {
-                          std::cerr << "Json parse failed with message: " << e.what() << std::endl;
-                          incoming_draws.clear();
-                      }
-                      catch (...)
-                      {
-                          std::cerr << "Json parse failed with uknnown reason." << std::endl;
-                          incoming_draws.clear();
-                      }
-
-                      if (!incoming_draws.empty())
-                      {
-                          // Get rid of all drawables, convert them into SVG.
-                          for (auto &element : incoming_draws)
-                          {
-                              auto svgTask =
-                                SvgBuilder(window_width, window_height, std::move(element.second))
-                                  .BuildSvgTask();
-                              element.second = std::move(svgTask);
-                          }
-
-                          const std::lock_guard grd(*mut);
-                          if ((!(*should_close_ptr)))
-                          {
-                              incoming_draws.merge(allDraws);
-                              // Anti-flickering support.
-                              if (!allDraws.empty())
-                              {
-                                  for (const auto &old : allDraws)
-                                  {
-                                      const auto it = incoming_draws.find(old.first);
-                                      if (it != incoming_draws.end())
-                                      {
-                                          if (it->second.isEqualStoredData(old.second))
-                                          {
-                                              it->second.setAlreadyRendered();
-                                          }
-                                      }
-                                  }
-                                  allDraws.clear();
-                              }
-                              removeRenamedDuplicates(incoming_draws);
-                              std::swap(allDraws, incoming_draws);
-                          }
-                      }
-                  }
-                  catch (...)
-                  {
-                  }
-              }).detach();
-          };
+              io_context.stop();
+          }
+          catch (std::exception &e)
+          {
+              std::cerr << "ASIO Server error: " << e.what() << std::endl;
+          }
       });
 
     // Main thread loop. It draws and manages remove of the expired items.
     try
     {
-        constexpr auto kAppActivityCheck = 1500ms;
+        constexpr auto kAppActivityCheck = 1500ms; // NOLINT
         auto lastCheckTime = std::chrono::steady_clock::now() - kAppActivityCheck;
         bool targetAppActive = false;
         bool commandHideLayer = false;
@@ -221,7 +121,7 @@ int main(int argc, char *argv[])
         const std::map<std::string, std::function<bool()>> commandCallbacks = {
           {"exit",
            [&]() {
-               serverThread.reset();
+               serverAcceptThread.reset();
                // Skipping next loop by false here
                targetAppActive = false;
                return true; // break the loop
@@ -239,10 +139,10 @@ int main(int argc, char *argv[])
         };
 
         bool window_was_hidden = false;
-        while (serverThread)
+        while (serverAcceptThread)
         {
             static std::size_t transparencyChecksCounter = 0;
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(100ms); // NOLINT
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
             {
                 ++transparencyChecksCounter;
@@ -253,7 +153,7 @@ int main(int argc, char *argv[])
                 if (transparencyChecksCounter % 5 == 0 && !drawer.isTransparencyAvail())
                 {
                     // It can be some service restart....
-                    std::this_thread::sleep_for(500ms);
+                    std::this_thread::sleep_for(500ms); // NOLINT
                     if (!drawer.isTransparencyAvail())
                     {
                         std::cerr << "Lost transparency. Closing overlay." << std::endl;
@@ -261,8 +161,8 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-            {
-                const std::lock_guard grd(*mut);
+
+            outputContext.accessContext([&](auto &allDraws) {
                 bool skip_render = true;
                 for (auto iter = allDraws.begin(); iter != allDraws.end();)
                 {
@@ -317,7 +217,7 @@ int main(int argc, char *argv[])
                     }
                     window_was_hidden = true;
                 }
-            }
+            });
         }
     }
     catch (...)
@@ -325,9 +225,9 @@ int main(int argc, char *argv[])
         std::cerr << "Exception into drawing loop. Program is going to exit..." << std::endl;
     }
 
-    serverThread.reset();
-
-    // Wait while all detached threads will stop writting parsed messages.
-    const std::lock_guard grd(*mut);
+    serverAcceptThread.reset();
+    outputContext.accessContext([](auto &allDraws) {
+        std::cout << "Final cleanup: " << allDraws.size() << " items left." << std::endl;
+    });
     return 0;
 }
