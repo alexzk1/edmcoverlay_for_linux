@@ -4,10 +4,7 @@ project(emoji_renderer LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-find_package(Freetype REQUIRED)
-find_package(PNG REQUIRED)
-find_package(Fontconfig REQUIRED)
+# Check required_system_libraries.cmake for find_package()
 
 file(GLOB PROJECT_SOURCES
         *.h

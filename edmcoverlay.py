@@ -12,6 +12,8 @@ from monitor import monitor
 import _config_vars
 from typing import Optional
 
+from persistent_socket import PersistentSocket
+
 
 def check_game_running():
     return monitor.game_running()
@@ -43,6 +45,7 @@ class OverlayImpl:
             self.__initialised = True
             self._host = server
             self._port = port
+            self._connection = PersistentSocket(server, port)
 
     def setConfig(self, config: _config_vars.ConfigVars):
         self.__config = config
@@ -52,30 +55,12 @@ class OverlayImpl:
         self.send_command("exit")
 
     def _send_raw_text(self, inpstr: str):
-        # print("Raw inpstr: ", inpstr)
-        inpstr = (
-            inpstr.replace("\\u202f", "\\u00a0")
-            .replace("\\ud83d\\udcc8", "*")
-            .replace("\\ud83d\\udcdd", "»")
-        )
-
         bstr = inpstr.encode("utf-8")
-        for retries in range(1, 7):
-            try:
-                with self.__lock:
-                    conn = socket.socket()
-                    conn.connect((self._host, self._port))
-                    conn.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
-                    conn.close()
-                    break
-            except socket.error as e:
-                if e.errno == errno.ECONNREFUSED:
-                    logger.warning(
-                        "Connection to binary server was refused %i time(s).", retries
-                    )
-                    time.sleep(random.randint(200, 450) / 1000.0)
-                else:
-                    raise
+
+        with self.__lock:
+            ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
+            if not ok:
+                logger.warning("Could not send data to binary.")
         return None
 
     def _send2bin(self, owner: str, msg: dict):
