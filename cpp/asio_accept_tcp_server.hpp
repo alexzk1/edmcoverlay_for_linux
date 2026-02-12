@@ -22,10 +22,8 @@ class AsioAcceptTcpServer
         logicContext_(std::move(logicContext))
     {
         std::cout << "ASIO Server started on port " << port << std::endl;
-        do_accept();
     }
 
-  private:
     void do_accept()
     {
         // Do not block thread, call lambda when we have incoming.
@@ -41,6 +39,7 @@ class AsioAcceptTcpServer
         });
     }
 
+  private:
     asio::ip::tcp::acceptor acceptor_;
     LogicContext logicContext_;
 };

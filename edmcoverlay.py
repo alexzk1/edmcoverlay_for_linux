@@ -8,7 +8,6 @@ import socket
 import threading
 import time
 import random
-from monitor import monitor
 import _config_vars
 from typing import Optional
 
@@ -18,63 +17,46 @@ SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5010
 
 
-def check_game_running():
-    return monitor.game_running()
-
-
 class OverlayImpl:
-    __instance = None
-    __lock = threading.Lock()
-    __initialised: bool = False
-    __config: Optional[_config_vars.ConfigVars] = None
-
-    def __new__(cls, *args, **kwargs):
-        with cls.__lock:
-            if cls.__instance is None:
-                cls.__instance = object.__new__(cls, *args, **kwargs)
-            return cls.__instance
+    _config: Optional[_config_vars.ConfigVars] = None
 
     def __init__(
         self,
         server: str = SERVER_IP,
         port: int = SERVER_PORT,
     ):
-        logger.info("Loading implementation details...")
-        with self.__lock:
-            if self.__initialised:
-                logger.debug("Details were already loaded.")
-                return
-            logger.debug("Initializing implementation details.")
-            self.__initialised = True
-            self._host = server
-            self._port = port
-            self._connection = PersistentSocket(server, port)
+        self._lock = threading.Lock()
+        self._host = server
+        self._port = port
+        self._connection = PersistentSocket(server, port)
 
-    def setConfig(self, config: _config_vars.ConfigVars):
-        self.__config = config
+    @staticmethod
+    def setConfig(config: _config_vars.ConfigVars):
+        OverlayImpl._config = config
 
     def _stop(self):
         logger.info("Sending self-stop/exit request to the binary.")
         self.send_command("exit")
+        self._connection.close()
 
     def _send_raw_text(self, inpstr: str):
         bstr = inpstr.encode("utf-8")
 
-        with self.__lock:
+        with self._lock:
             ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
             if not ok:
                 logger.warning("Could not send data to binary.")
         return None
 
     def _send2bin(self, owner: str, msg: dict):
-        if self.__config is not None:
+        if self._config is not None:
             if "font_size" not in msg and "shape" not in msg and "svg" not in msg:
                 font = msg.get("size", "normal")
-                msg["font_size"] = self.__config.getFontSize(owner, font)
+                msg["font_size"] = self._config.getFontSize(owner, font)
 
             if "vector_font_size" not in msg and "vector" in msg:
                 font = msg.get("size", "normal")
-                msg["vector_font_size"] = self.__config.getFontSize(owner, font)
+                msg["vector_font_size"] = self._config.getFontSize(owner, font)
 
         self._send_raw_text(json.dumps(msg))
 

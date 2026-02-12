@@ -94,14 +94,27 @@ int main(int argc, char *argv[])
           try
           {
               asio::io_context io_context; // NOLINT
-              const AsioAcceptTcpServer server(
+
+              AsioAcceptTcpServer server(
                 io_context, port,
                 LogicContext{window_width, window_height, outputContext, should_close_ptr});
+              server.do_accept();
+
+              const auto work_guard = asio::make_work_guard(io_context);
+              std::thread context_thread([&io_context]() {
+                  io_context.run();
+              });
+
               while (!(*should_close_ptr))
               {
-                  io_context.run_for(250ms); // NOLINT
+                  std::this_thread::sleep_for(100ms);
               }
+
               io_context.stop();
+              if (context_thread.joinable())
+              {
+                  context_thread.join();
+              }
           }
           catch (std::exception &e)
           {

@@ -5,6 +5,8 @@ from _logger import logger
 
 
 class PersistentSocket:
+    launch_binary = staticmethod(lambda: None)
+
     def __init__(self, host: str, port: int):
         self.host = host
         self.port = port
@@ -18,18 +20,20 @@ class PersistentSocket:
             new_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             new_sock.settimeout(5.0)
             new_sock.connect((self.host, self.port))
+            logger.debug("TCP connection to binary established.")
             return new_sock
         except socket.error as e:
-            logger.error(f"Failed to connect to {self.host}:{self.port} - {e}")
+            # logger.error(f"Failed to connect to {self.host}:{self.port} - {e}")
             return None
 
     def connect(self) -> bool:
+        PersistentSocket.launch_binary()
         for attempt in range(3):
             if self._sock is None:
                 self._sock = self._create_socket()
                 if self._sock is None:
                     logger.debug(f"Server not ready, waiting... (attempt {attempt})")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     continue
             else:
                 break
@@ -55,10 +59,15 @@ class PersistentSocket:
 
     def close(self):
         """Safe socket closing/disconnect."""
-        if self._sock:
-            try:
-                self._sock.shutdown(socket.SHUT_RDWR)
-                self._sock.close()
-            except Exception:
-                pass
+        sock = self._sock
         self._sock = None
+        if sock:
+            logger.debug("Closing socket to binary.")
+            try:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                sock.close()
+            except Exception as e:
+                logger.debug(f"Socket close error: {e}")

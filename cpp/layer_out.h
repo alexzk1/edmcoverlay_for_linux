@@ -26,6 +26,7 @@ class OutputLayer
     virtual std::string getFocusedWindowBinaryPath() const = 0;
     virtual void showVersionString(const std::string &src, const std::string &color) = 0;
     virtual void draw(const draw_task::drawitem_t &drawitem) = 0;
+    [[nodiscard]]
     virtual bool isTransparencyAvail() const = 0;
 
     static std::string getBinaryPathForPid(const std::uint64_t pid)
