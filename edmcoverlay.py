@@ -2,12 +2,7 @@ from _logger import logger
 
 import secrets
 import inspect
-import errno
 import json
-import socket
-import threading
-import time
-import random
 import _config_vars
 from typing import Optional
 
@@ -25,7 +20,6 @@ class OverlayImpl:
         server: str = SERVER_IP,
         port: int = SERVER_PORT,
     ):
-        self._lock = threading.Lock()
         self._host = server
         self._port = port
         self._connection = PersistentSocket(server, port)
@@ -41,11 +35,9 @@ class OverlayImpl:
 
     def _send_raw_text(self, inpstr: str):
         bstr = inpstr.encode("utf-8")
-
-        with self._lock:
-            ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
-            if not ok:
-                logger.warning("Could not send data to binary.")
+        ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
+        if not ok:
+            logger.warning("Could not send data to binary.")
         return None
 
     def _send2bin(self, owner: str, msg: dict):

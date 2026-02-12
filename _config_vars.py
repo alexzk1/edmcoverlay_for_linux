@@ -3,10 +3,7 @@ import json
 import logging
 import tkinter as tk
 from pathlib import Path
-
 from config import config
-
-import myNotebook as nb
 import _gui_builder as gb
 import _logger as lgr
 from _logger import logger

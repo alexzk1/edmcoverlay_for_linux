@@ -22,7 +22,7 @@ if not logger.hasHandlers():
     logger.setLevel(DEFAULT_LOG_LEVEL)
     logger_channel = logging.StreamHandler()
     logger_formatter = logging.Formatter(
-        f"%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d:%(funcName)s: %(message)s"
+        "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d:%(funcName)s: %(message)s"
     )
     logger_formatter.default_time_format = "%Y-%m-%d %H:%M:%S"
     logger_formatter.default_msec_format = "%s.%03d"

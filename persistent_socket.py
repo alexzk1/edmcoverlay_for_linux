@@ -2,11 +2,10 @@ import random
 import socket
 import time
 from _logger import logger
+from overlay_manager import OverlayBinaryManager
 
 
 class PersistentSocket:
-    launch_binary = staticmethod(lambda: None)
-
     def __init__(self, host: str, port: int):
         self.host = host
         self.port = port
@@ -22,12 +21,11 @@ class PersistentSocket:
             new_sock.connect((self.host, self.port))
             logger.debug("TCP connection to binary established.")
             return new_sock
-        except socket.error as e:
-            # logger.error(f"Failed to connect to {self.host}:{self.port} - {e}")
+        except socket.error:
             return None
 
     def connect(self) -> bool:
-        PersistentSocket.launch_binary()
+        OverlayBinaryManager().ensure_started(None)
         for attempt in range(3):
             if self._sock is None:
                 self._sock = self._create_socket()

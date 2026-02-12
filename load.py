@@ -1,37 +1,30 @@
 """Totally definitely EDMCOverlay."""
 
-import socket
-import time
 import tkinter as tk
 from pathlib import Path
-from subprocess import Popen
-from typing import Optional
-
 import myNotebook as nb
-from persistent_socket import PersistentSocket
+from overlay_manager import OverlayBinaryManager
 from ttkHyperlinkLabel import HyperlinkLabel
-
 import _config_vars as cfv
 import _gui_builder as gb
-import edmcoverlay
 from _logger import logger
 from typing import Tuple
+
+import edmcoverlay
+from edmcoverlay.edmcoverlay import OverlayImpl, SERVER_IP, SERVER_PORT
 
 logger.debug("Loading overlay plugin...")
 
 __CaptionText: str = "EDMCOverlay for Linux"
-__overlay_process: Optional[Popen] = None
 __configVars: cfv.ConfigVars = cfv.ConfigVars()
-
 __configVars.raiseIfWrongNamed()
 
 # This is variable controlled from the main screen. It should not be saved. But it sends message to the running app to hide overlay temporary.
 __iHideButDoNotStopOverlay: tk.BooleanVar = tk.BooleanVar(value=False)
-edmcoverlay.OverlayImpl().setConfig(__configVars)
+OverlayImpl().setConfig(__configVars)
 
 
 def __find_overlay_binary() -> Path:
-    global __configVars
     our_directory = __configVars.getOurDir()
 
     possible_paths = [
@@ -47,6 +40,23 @@ def __find_overlay_binary() -> Path:
             return p
 
     raise RuntimeError("Unable to find overlay's binary.")
+
+
+def __build_cmd():
+    cmd = [
+        __find_overlay_binary(),
+        str(__configVars.iXPos.get()),
+        str(__configVars.iYPos.get()),
+        str(__configVars.iWidth.get()),
+        str(__configVars.iHeight.get()),
+    ]
+    if __configVars.iTrackGame.get():
+        cmd.append("EliteDangerous64.exe")
+    return cmd
+
+
+# Initializing singltone controller of the binary.
+__overlayController = OverlayBinaryManager(SERVER_IP, SERVER_PORT, __build_cmd)
 
 
 def __show_intro():
@@ -129,103 +139,74 @@ def __show_intro():
     )
 
 
-def __ensure_overlay_started():
-    global __overlay_process
-    global __configVars
-    global __iHideButDoNotStopOverlay
-
-    # Check if process was killed or crashed.
-    if __overlay_process is not None:
-        if __overlay_process.poll() is not None:
-            logger.debug("Overlay binary process is dead.")
-            __overlay_process = None
-
-    if __overlay_process is None:
-        logger.info("Starting overlay.")
-        cmd = [
-            __find_overlay_binary(),
-            str(__configVars.iXPos.get()),
-            str(__configVars.iYPos.get()),
-            str(__configVars.iWidth.get()),
-            str(__configVars.iHeight.get()),
-        ]
-        if __configVars.iTrackGame.get():
-            cmd.append("EliteDangerous64.exe")
-
-        __overlay_process = Popen(cmd)
-
-        port = edmcoverlay.SERVER_PORT
-        host = edmcoverlay.SERVER_IP
-
-        server_ready = False
-        for i in range(20):
-            try:
-                with socket.create_connection((host, port), timeout=0.5) as s:
-                    server_ready = True
-                    break
-            except (socket.error, ConnectionRefusedError):
-                if __overlay_process.poll() is not None:
-                    logger.error("Overlay binary died during startup.")
-                    break
-                time.sleep(0.5)
-
-        if not server_ready:
-            logger.error(
-                "Overlay binary started but port 5010 is still closed after 10s."
-            )
-            return
-
-        logger.info("Server is up! Sending intro.")
-        __show_intro()
-        __iHideButDoNotStopOverlay.set(False)
-
-
-PersistentSocket.launch_binary = staticmethod(__ensure_overlay_started)
-
-
-def __stop_overlay():
-    global __overlay_process
-    if __overlay_process:
-        if __overlay_process.poll() is None:
-            __overlay_process.terminate()
-            __overlay_process.communicate()
-        __overlay_process = None
-    else:
-        logger.debug("Overlay was not started. Nothing to stop.")
+def __binary_started():
+    __show_intro()
+    __iHideButDoNotStopOverlay.set(False)
 
 
 # Reaction to the game start/stop.
 def journal_entry(cmdr, is_beta, system, station, entry, state):
-    global __overlay_process
-    if entry["event"] in ["LoadGame", "StartUp"] and __overlay_process is None:
+    if entry["event"] in ["LoadGame", "StartUp"] and not __overlayController.is_alive:
         logger.info("Load event received, ensuring binary overlay is started.")
-        __ensure_overlay_started()
-        __show_intro()
+        __overlayController.ensure_started(__binary_started)
     elif entry["event"] in ["Shutdown", "ShutDown"]:
         logger.info("Shutdown event received, stopping binary overlay.")
-        __stop_overlay()
+        __overlayController.stop()
 
 
 # Reaction to EDMC start.
 def plugin_start3(plugin_dir):
-    global __configVars
     logger.info("Python code starts.")
     __configVars.loadFromSettings()
-    __ensure_overlay_started()
+    __overlayController.ensure_started(__binary_started)
 
     return __CaptionText
 
 
 # Reaction to EDMC stop.
 def plugin_stop():
-    global __overlay_process
     logger.info("Finishing Python's code.")
-    __stop_overlay()
+    __overlayController.stop()
+
+
+def prefs_changed(cmdr: str, is_beta: bool) -> None:
+    if __configVars.saveToSettings() and __overlayController.is_alive:
+        __overlayController.stop()
+        __overlayController.ensure_started(__binary_started)
+
+
+def __hide_overlay():
+    edmcoverlay.Overlay().send_command("overlay_off")
+
+
+def __show_overlay():
+    edmcoverlay.Overlay().send_command("overlay_on")
+
+
+def plugin_app(parent: tk.Frame) -> Tuple[tk.Radiobutton, tk.Radiobutton]:
+
+    # Main window frame
+    btnShow = tk.Radiobutton(
+        parent,
+        variable=__iHideButDoNotStopOverlay,
+        value=False,
+        text="Show Overlay",
+        command=lambda: __show_overlay(),
+    )
+
+    btnHide = tk.Radiobutton(
+        parent,
+        variable=__iHideButDoNotStopOverlay,
+        value=True,
+        text="Hide Overlay",
+        command=lambda: __hide_overlay(),
+    )
+    return btnShow, btnHide
 
 
 def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
+
     # Settings frame
-    global __configVars
 
     mainFrame = nb.Frame(parent)
     mainFrame.columnconfigure(0, weight=1)
@@ -258,43 +239,3 @@ def plugin_prefs(parent: nb.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     gb.AddMainSeparator(mainFrame)
 
     return mainFrame
-
-
-def prefs_changed(cmdr: str, is_beta: bool) -> None:
-    global __configVars
-    if __configVars.saveToSettings() and __overlay_process is not None:
-        __stop_overlay()
-        __ensure_overlay_started()
-
-
-def __hide_overlay():
-    global __the_overlay
-    edmcoverlay.Overlay().send_command("overlay_off")
-
-
-def __show_overlay():
-    global __the_overlay
-    edmcoverlay.Overlay().send_command("overlay_on")
-
-
-def plugin_app(parent: tk.Frame) -> Tuple[tk.Radiobutton, tk.Radiobutton]:
-    # Main window frame
-
-    global __iHideButDoNotStopOverlay
-
-    btnShow = tk.Radiobutton(
-        parent,
-        variable=__iHideButDoNotStopOverlay,
-        value=False,
-        text="Show Overlay",
-        command=lambda: __show_overlay(),
-    )
-
-    btnHide = tk.Radiobutton(
-        parent,
-        variable=__iHideButDoNotStopOverlay,
-        value=True,
-        text="Hide Overlay",
-        command=lambda: __hide_overlay(),
-    )
-    return btnShow, btnHide
