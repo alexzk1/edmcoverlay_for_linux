@@ -1,3 +1,5 @@
+import queue
+import threading
 from _logger import logger
 
 import secrets
@@ -11,8 +13,16 @@ from persistent_socket import PersistentSocket
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5010
 
+_SHUTDOWN_SIGNAL = object()
+
 
 class OverlayImpl:
+    """Implementation of communication with binary overlay server.
+    Note, it is NOT singltone so each plugin will have own copy.
+    If plugin breaks protocol, it will be disconnected just
+    while others remain connected.
+    """
+
     _config: Optional[_config_vars.ConfigVars] = None
 
     def __init__(
@@ -24,6 +34,14 @@ class OverlayImpl:
         self._port = port
         self._connection = PersistentSocket(server, port)
 
+        self._queue = queue.Queue()
+        self._worker_thread = threading.Thread(
+            target=self._send_worker,
+            name=f"OverlayWorker-{secrets.token_hex(2)}",
+            daemon=True,
+        )
+        self._worker_thread.start()
+
     @staticmethod
     def setConfig(config: _config_vars.ConfigVars):
         OverlayImpl._config = config
@@ -31,13 +49,27 @@ class OverlayImpl:
     def _stop(self):
         logger.info("Sending self-stop/exit request to the binary.")
         self.send_command("exit")
-        self._connection.close()
+        self.closeConnection()
+
+    def _send_worker(self):
+        """Background thread to send data to binary overlay."""
+        while True:
+            data = self._queue.get()
+            if data is _SHUTDOWN_SIGNAL:
+                self._connection.close()
+                break
+            try:
+                bstr = data.encode("utf-8")
+                ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
+                if not ok:
+                    logger.warning("Overlay Worker: Could not send data to binary.")
+            except Exception as e:
+                logger.error(f"Overlay Worker thread error: {e}")
+            finally:
+                self._queue.task_done()
 
     def _send_raw_text(self, inpstr: str):
-        bstr = inpstr.encode("utf-8")
-        ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
-        if not ok:
-            logger.warning("Could not send data to binary.")
+        self._queue.put(inpstr)
         return None
 
     def _send2bin(self, owner: str, msg: dict):
@@ -126,13 +158,18 @@ class OverlayImpl:
         self._send2bin(owner, msg)
 
     def closeConnection(self):
-        self._connection.close()
+        self._queue.put(_SHUTDOWN_SIGNAL)
 
     def connect(self):
         return self._connection.connect()
 
 
 class Overlay:
+    """Main class to communicated with binary overlay.
+    Plugin must create a copy of this class to draw overlay messages.
+    Each new copy will establish new TCP connection.
+    """
+
     __caller_path: str = ""
     __token: str = ""
 
