@@ -49,7 +49,7 @@ class OverlayImpl:
     def _stop(self):
         logger.info("Sending self-stop/exit request to the binary.")
         self.send_command("exit")
-        self.closeConnection()
+        self._queue.put(_SHUTDOWN_SIGNAL)
 
     def _send_worker(self):
         """Background thread to send data to binary overlay."""
@@ -156,9 +156,6 @@ class OverlayImpl:
             "font_file": font_file,
         }
         self._send2bin(owner, msg)
-
-    def closeConnection(self):
-        self._queue.put(_SHUTDOWN_SIGNAL)
 
     def connect(self):
         return self._connection.connect()
