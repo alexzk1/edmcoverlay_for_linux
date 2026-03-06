@@ -277,7 +277,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
     {
         svgOutStream << "<rect x='" << drawTask.x << "' y='" << drawTask.y << "' width='"
                      << drawTask.shape.w << "' height='" << drawTask.shape.h
-                     << "' fill='none' stroke='" << drawTask.color << "' stroke-width='"
+                     << "' fill='" << drawTask.shape.fill << "' stroke='" << drawTask.color << "' stroke-width='"
                      << kStrokeWidth << "' />";
     }
 }
