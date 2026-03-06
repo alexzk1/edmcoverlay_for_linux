@@ -116,7 +116,7 @@ struct drawitem_t
     {
         // shape
         std::string shape;
-        std::string fill;
+        std::string fill = "none";
         int w{0};
         int h{0};
         font_size::FontPixelSize vector_font_size{0};
