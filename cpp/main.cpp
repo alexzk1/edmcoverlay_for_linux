@@ -2,23 +2,28 @@
 
 #include "asio_accept_tcp_server.hpp"
 #include "drawables.h"
+#include "layer_out.h"
 #include "logic_context.hpp"
 #include "runners.h"
 #include "strutils.h"
 #include "xoverlayoutput.h"
 
-#include <asio.hpp> //NOLINT
+#include <asio.hpp>
+#include <asio/executor_work_guard.hpp>
+#include <asio/io_context.hpp>
 #include <stdlib.h> //NOLINT
 
 #include <chrono>
 #include <csignal>
 #include <cstddef>
+#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -56,8 +61,6 @@ void sighandler(int signum)
 
 int main(int argc, char *argv[])
 {
-    using namespace std::chrono_literals;
-
     if (argc < 5 || argc > 6)
     {
         std::cerr << "Usage: overlay X Y W H [BinaryNameToOverlay]" << std::endl;
@@ -74,8 +77,27 @@ int main(int argc, char *argv[])
     const auto window_width = atoi(argv[3]);
     const auto window_height = atoi(argv[4]);
 
-    auto &drawer = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), window_width,
-                                       window_height);
+    std::optional<std::reference_wrapper<OutputLayer>> drawerRef{};
+    try
+    {
+        drawerRef = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), window_width,
+                                        window_height);
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << "Failed to allocated overlay drawer: " << e.what() << ". Program now exits."
+                  << std::endl;
+        std::exit(255);
+    }
+    catch (...)
+    {
+        std::cerr
+          << "Failed to allocated overlay drawer with generic non C++ exception. Program now exits."
+          << std::endl;
+        std::exit(255);
+    }
+
+    OutputLayer &drawer = *drawerRef;
 
     // std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
@@ -107,7 +129,7 @@ int main(int argc, char *argv[])
 
               while (!(*should_close_ptr))
               {
-                  std::this_thread::sleep_for(100ms);
+                  std::this_thread::sleep_for(std::chrono::milliseconds(100));
               }
 
               io_context.stop();
@@ -125,7 +147,7 @@ int main(int argc, char *argv[])
     // Main thread loop. It draws and manages remove of the expired items.
     try
     {
-        constexpr auto kAppActivityCheck = 1500ms; // NOLINT
+        constexpr auto kAppActivityCheck = std::chrono::milliseconds(1500); // NOLINT
         auto lastCheckTime = std::chrono::steady_clock::now() - kAppActivityCheck;
         bool targetAppActive = false;
         bool commandHideLayer = false;
@@ -154,7 +176,7 @@ int main(int argc, char *argv[])
         while (serverAcceptThread)
         {
             static std::size_t transparencyChecksCounter = 0;
-            std::this_thread::sleep_for(100ms); // NOLINT
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (lastCheckTime + kAppActivityCheck < std::chrono::steady_clock::now())
             {
                 ++transparencyChecksCounter;
@@ -165,7 +187,7 @@ int main(int argc, char *argv[])
                 if (transparencyChecksCounter % 5 == 0 && !drawer.isTransparencyAvail())
                 {
                     // It can be some service restart....
-                    std::this_thread::sleep_for(500ms); // NOLINT
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     if (!drawer.isTransparencyAvail())
                     {
                         std::cerr << "Lost transparency. Closing overlay." << std::endl;
