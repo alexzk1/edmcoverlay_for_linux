@@ -97,6 +97,7 @@ class XPrivateAccess
     // Make sure it is 1st field, so it is cleared last in dtor.
     struct TXInitFreeCaller;
     std::unique_ptr<TXInitFreeCaller> initializer;
+    mutable Atom m_cmAtom{None};
 
   public:
     const int window_xpos;
@@ -210,13 +211,16 @@ class XPrivateAccess
             return false;
         }
 
-        const Atom cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 1);
-        if (cmAtom == None)
+        if (m_cmAtom == None)
+        {
+            m_cmAtom = XInternAtom(g_display, "_NET_WM_CM_S0", 1);
+        }
+        if (m_cmAtom == None)
         {
             return false;
         }
 
-        const Window cmOwner = XGetSelectionOwner(g_display, cmAtom);
+        const Window cmOwner = XGetSelectionOwner(g_display, m_cmAtom);
         return cmOwner != None;
     }
 
@@ -246,7 +250,7 @@ class XPrivateAccess
             }
             auto renderer = [this,
                              shared_pixmap = std::make_shared<TPixmapWithDims>(std::move(pixmap)),
-                             &drawitem]() {
+                             tx = drawitem.x, ty = drawitem.y]() {
                 const auto &[pixmap_id, pixmap_width, pixmap_height] = *shared_pixmap;
                 XRenderPictFormat *pictFormat = XRenderFindVisualFormat(g_display, g_vinfo.visual);
                 auto srcPict = AllocateId<Picture>(XRenderFreePicture, XRenderCreatePicture,
@@ -258,7 +262,7 @@ class XPrivateAccess
                                           g_win, pictFormat, 0, nullptr);
                 }
                 XRenderComposite(g_display, PictOpOver, srcPict, None, g_windowOpaqueDestination, 0,
-                                 0, 0, 0, drawitem.x, drawitem.y, pixmap_width, pixmap_height);
+                                 0, 0, 0, tx, ty, pixmap_width, pixmap_height);
             };
             drawitem.svg.render = std::move(renderer);
         }
@@ -481,6 +485,10 @@ class XPrivateAccess
     std::string getWindowPropertyString(const char *const aPropertyName, const Window aWindow) const
     {
         const auto ptr = getWindowPropertyAny(aPropertyName, aWindow);
+        if (!ptr)
+        {
+            return {};
+        }
         // NOLINTNEXTLINE
         return {reinterpret_cast<const char *const>(ptr)};
     }
