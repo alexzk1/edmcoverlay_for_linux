@@ -1,5 +1,3 @@
-// this file was heavy simplified by alexzkhr@gmail.com in 2021
-
 #include "asio_accept_tcp_server.hpp"
 #include "drawables.h"
 #include "layer_out.h"
@@ -13,6 +11,7 @@
 #include <asio/io_context.hpp>
 #include <stdlib.h> //NOLINT
 
+#include <cassert>
 #include <chrono>
 #include <csignal>
 #include <cstddef>
@@ -23,7 +22,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 
@@ -74,14 +72,16 @@ int main(int argc, char *argv[])
         utility::trim(programName);
     }
 
-    const auto window_width = atoi(argv[3]);
-    const auto window_height = atoi(argv[4]);
-
-    std::optional<std::reference_wrapper<OutputLayer>> drawerRef{};
+    int window_width{0};
+    int window_height{0};
+    std::unique_ptr<OutputLayer> window{nullptr};
     try
     {
-        drawerRef = XOverlayOutput::get(windowClassName, atoi(argv[1]), atoi(argv[2]), window_width,
-                                        window_height);
+        // stoi throws exception if we don't pass numbers
+        window_width = std::stoi(argv[3]);
+        window_height = std::stoi(argv[4]);
+        window = OutputLayer::allocate<XOverlayOutput>(
+          windowClassName, std::stoi(argv[1]), std::stoi(argv[2]), window_width, window_height);
     }
     catch (std::exception &e)
     {
@@ -96,8 +96,9 @@ int main(int argc, char *argv[])
           << std::endl;
         std::exit(255);
     }
+    assert(window && "Something really weird happened: pointer must not be nullptr here.");
 
-    OutputLayer &drawer = *drawerRef;
+    OutputLayer &drawer = *window;
 
     // std::cout << "edmcoverlay2: overlay starting up..." << std::endl;
     signal(SIGINT, sighandler);
