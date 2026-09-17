@@ -2,7 +2,8 @@
 
 // https://en.cppreference.com/w/cpp/utility/variant/visit
 template <class... Ts>
-struct LambdaVisitor : Ts... {
+struct LambdaVisitor : Ts...
+{
     using Ts::operator()...;
 };
 

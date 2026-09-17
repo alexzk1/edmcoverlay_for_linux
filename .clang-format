@@ -82,6 +82,7 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
+InsertBraces: true
 
 AlignOperands: Align
 BreakAfterAttributes: Always
