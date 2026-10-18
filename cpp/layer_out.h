@@ -17,8 +17,8 @@ class OutputLayer
     OutputLayer() = default;
 
   public:
-    NO_COPYMOVE(OutputLayer);         // we don't want devices be copyable
     virtual ~OutputLayer() = default; // making sure we can proper delete children
+    NO_COPYMOVE(OutputLayer);         // we don't want devices be copyable
 
     virtual void cleanFrame() = 0;
     virtual void flushFrame() = 0;
@@ -45,12 +45,12 @@ class OutputLayer
         }
         return {fulls.c_str()};
     }
-};
 
-// https://habr.com/ru/post/242639/
-template <typename T, typename... Args>
-inline T &getStaticObject(Args &&...args)
-{
-    static T obj(std::forward<Args>(args)...);
-    return obj;
-}
+    template <typename taType, typename... taArgs>
+    static std::unique_ptr<OutputLayer> allocate(taArgs &&...args)
+    {
+        static_assert(std::is_base_of_v<OutputLayer, taType>,
+                      "Children of OutputLayer are allowed.");
+        return std::make_unique<taType>(std::forward<taArgs>(args)...);
+    }
+};
