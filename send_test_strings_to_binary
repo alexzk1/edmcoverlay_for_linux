@@ -6,8 +6,8 @@ PORT="5010"
 messages=(
 '{"id": "test1", "text": "You are low on fuel🚫(oops❔)", "size": "normal", "color": "red", "x": 100, "y": 100, "ttl": 15}'
 '{"id": "test2", "text": "You are low on fuel!!", "font_size": 50, "color": "red", "x": 150, "y": 130, "ttl": 8}'
-'{"id": "test3", "text": "You are low on fuel!!!", "size": "normal", "font_size": 70, "color": "blue", "x": 400, "y": 140, "ttl": 8}'
-'{"id": "test4", "text": "You are low on fuel!!\n\tNew line★ ▲ ■ ☯ ♞ 🚫💰➖❔ tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 8}'
+'{"id": "test3", "text": "You are low on fuel!!!", "size": "normal", "font_size": 70, "color": "blue", "x": 400, "y": 140, "ttl": 20}'
+'{"id": "test4", "text": "You are low on fuel!!\n\tNew line★ ▲ ■ ☯ ♞ 🚫💰➖❔ tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 18}'
 '{"id": "test_rect", "shape": "rect", "color": "#000000", "fill": "#00FF88", "x": 100, "y": 450, "w": 400, "h": 80, "ttl": 15}'
 '{"id": "test_rect_text", "text": "Filled rect + text", "font_size": 30, "color": "#FFFFFF", "x": 110, "y": 495, "ttl": 15}'
 )
@@ -31,6 +31,12 @@ CLEAR_RECT='{"id": "test_rect", "ttl": 0}'
 len=$(echo -n "$CLEAR_RECT" | wc -c)
 echo -n "${len}#${CLEAR_RECT}" | nc "$HOST" "$PORT" -c
 
+sleep 3
+
+CLEAR_TEXT_OLD_WAY='{"id": "test_rect_text", "text": "", "ttl": 0}'
+len=$(echo -n "$CLEAR_TEXT_OLD_WAY" | wc -c)
+echo -n "${len}#${CLEAR_TEXT_OLD_WAY}" | nc "$HOST" "$PORT" -c
+echo "Now white text must be gone."
 
 echo -n "ERROR#broken" | nc "$HOST" "$PORT"
 echo "Should be failing message in overlay log."
