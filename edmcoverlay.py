@@ -6,7 +6,7 @@ import secrets
 import inspect
 import json
 import _config_vars
-from typing import Optional
+from typing import Any, Optional
 
 from persistent_socket import PersistentSocket
 
@@ -72,7 +72,7 @@ class OverlayImpl:
         self._queue.put(inpstr)
         return None
 
-    def _send2bin(self, owner: str, msg: dict):
+    def _send2bin(self, owner: str, msg: dict[str, Any]):
         if self._config is not None:
             if "font_size" not in msg and "shape" not in msg and "svg" not in msg:
                 font = msg.get("size", "normal")
@@ -177,7 +177,7 @@ class Overlay:
         self.__caller_path = callFrames[1].filename
         logger.debug('\tOverlay() is created for plugin: "%s"\n', self.__caller_path)
 
-    def send_raw(self, msg: dict):
+    def send_raw(self, msg: dict[str, Any]):
         if "msgid" in msg:
             msg["msgid"] = self.__token + str(msg["msgid"])
         if "shapeid" in msg:
@@ -199,7 +199,7 @@ class Overlay:
         x: int,
         y: int,
         ttl: int = 4,
-        size="normal",
+        size: str = "normal",
     ):
         return self.__overlay.send_message(
             self.__caller_path,
