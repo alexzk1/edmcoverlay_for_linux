@@ -4,7 +4,9 @@
 #include "logic_context.hpp"
 #include "svgbuilder.h"
 
-#include <asio.hpp> // NOLINT
+#include <asio.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/streambuf.hpp>
 
 #include <algorithm>
 #include <cstddef>
