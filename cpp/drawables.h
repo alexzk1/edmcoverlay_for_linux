@@ -116,7 +116,7 @@ struct drawitem_t
     {
         // shape
         std::string shape;
-        std::string fill;
+        std::string fill = "none";
         int w{0};
         int h{0};
         font_size::FontPixelSize vector_font_size{0};
@@ -354,6 +354,15 @@ inline draw_items_t parseJsonString(const std::string &src)
                 std::cout << "bad key: \"" << kv.key() << "\"" << std::endl;
             }
         }
+
+        // If the TTL is zero, the caller wants to remove the item. If they didn't specify the
+        // drawable type (which isn't necessary when removing something using its ID), we need to
+        // set the drawmode to something other than drawmode_t::idk, since that skips the rest of
+        // the rendering code.
+        if (drawitem.ttl.ttl == std::chrono::seconds::zero() && drawitem.drawmode == drawmode_t::idk) {
+             drawitem.drawmode = drawmode_t::text;
+        }
+
         if (drawitem.drawmode != draw_task::drawmode_t::idk || drawitem.isCommand())
         {
             if (drawitem.id.empty())
