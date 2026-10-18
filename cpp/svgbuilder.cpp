@@ -275,9 +275,10 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
     const bool had_vec = draw_task::ForEachVectorPointsPair(drawTask, drawLine, drawMarker);
     if (!had_vec && drawTask.shape.shape == "rect")
     {
+        const auto fillClr = drawTask.shape.fill.empty() ? "none" : drawTask.shape.fill;
         svgOutStream << "<rect x='" << drawTask.x << "' y='" << drawTask.y << "' width='"
-                     << drawTask.shape.w << "' height='" << drawTask.shape.h
-                     << "' fill='none' stroke='" << drawTask.color << "' stroke-width='"
+                     << drawTask.shape.w << "' height='" << drawTask.shape.h << "' fill='"
+                     << fillClr << "' stroke='" << drawTask.color << "' stroke-width='"
                      << kStrokeWidth << "' />";
     }
 }
