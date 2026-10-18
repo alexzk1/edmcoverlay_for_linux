@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
 
                     skip_render = skip_render && iter->second.already_rendered;
 
-                    if (isCommand || iter->second.isExpired())
+                    if (isCommand || iter->second.shouldBeRemovedFromScreen())
                     {
                         skip_render = false;
                         iter = allDraws.erase(iter);

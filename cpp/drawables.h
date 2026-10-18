@@ -33,7 +33,10 @@ struct timestamp_t
     {
         // original: https://github.com/inorton/EDMCOverlay/issues/42
         return ttl < std::chrono::seconds::zero()
-               || std::chrono::steady_clock::now() <= created_at + ttl;
+               || (std::chrono::steady_clock::now() <= created_at + ttl
+                   // We assume TTL = 0 -> clear. This hack solves fast CPUs when we could delay for
+                   // 1 tick.
+                   && ttl > std::chrono::seconds::zero());
     }
 
     [[nodiscard]]
@@ -173,7 +176,7 @@ struct drawitem_t
     }
 
     [[nodiscard]]
-    bool isExpired() const
+    bool shouldBeRemovedFromScreen() const
     {
         return ttl.isExpired();
     }
@@ -182,6 +185,13 @@ struct drawitem_t
     bool isCommand() const
     {
         return !command.empty();
+    }
+
+    /// @brief Detects "remove existing element from screen" intention.
+    [[nodiscard]]
+    bool isClearCommand() const
+    {
+        return shouldBeRemovedFromScreen() && !id.empty();
     }
 
     void setAlreadyRendered()
@@ -325,7 +335,7 @@ inline draw_items_t parseJsonString(const std::string &src)
          [](const json &node, drawitem_t &drawitem) {
              drawitem.command = node.get<std::string>();
          }},
-      };
+    };
 
     draw_items_t result;
     const auto parseSingleObject = [&result, &src](const auto &aObject) {
@@ -355,15 +365,10 @@ inline draw_items_t parseJsonString(const std::string &src)
             }
         }
 
-        // If the TTL is zero, the caller wants to remove the item. If they didn't specify the
-        // drawable type (which isn't necessary when removing something using its ID), we need to
-        // set the drawmode to something other than drawmode_t::idk, since that skips the rest of
-        // the rendering code.
-        if (drawitem.ttl.ttl == std::chrono::seconds::zero() && drawitem.drawmode == drawmode_t::idk) {
-             drawitem.drawmode = drawmode_t::text;
-        }
-
-        if (drawitem.drawmode != draw_task::drawmode_t::idk || drawitem.isCommand())
+        if (drawitem.drawmode != draw_task::drawmode_t::idk
+            || drawitem.isCommand()
+            // If the TTL is zero, the caller wants to remove the item.
+            || drawitem.isClearCommand())
         {
             if (drawitem.id.empty())
             {

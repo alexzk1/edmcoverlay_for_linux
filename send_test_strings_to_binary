@@ -24,6 +24,13 @@ messages2=(
     done
 } | nc "$HOST" "$PORT" -c
 
+sleep 5
+echo "Now green rect must be gone."
+
+CLEAR_RECT='{"id": "test_rect", "ttl": 0}'
+len=$(echo -n "$CLEAR_RECT" | wc -c)
+echo -n "${len}#${CLEAR_RECT}" | nc "$HOST" "$PORT" -c
+
 
 echo -n "ERROR#broken" | nc "$HOST" "$PORT"
-echo "Should fail"
+echo "Should be failing message in overlay log."

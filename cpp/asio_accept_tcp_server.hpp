@@ -3,7 +3,9 @@
 #include "logic_context.hpp"
 #include "tcp_session.hpp"
 
-#include <asio.hpp> //NOLINT
+#include <asio.hpp>
+#include <asio/io_context.hpp>
+#include <asio/ip/tcp.hpp>
 
 #include <cstdint>
 #include <iostream>
