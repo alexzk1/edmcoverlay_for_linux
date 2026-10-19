@@ -69,6 +69,8 @@ class EmojiRenderer
         unsigned int computedWidth;
         // Font selected or empty if fallback was used.
         FontPathOrFamily fontUsedToMeasure;
+        // This is exact font file is being used.
+        std::filesystem::path exactFontFile;
     };
 
     NO_COPYMOVE(EmojiRenderer);

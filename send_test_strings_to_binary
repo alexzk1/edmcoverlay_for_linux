@@ -10,6 +10,7 @@ messages=(
 '{"id": "test4", "text": "You are low on fuel!!\n\tNew line★ ▲ ■ ☯ ♞ 🚫💰➖❔ tabbed!!\nNew line non-tabbed!!!", "font_size": 50, "color": "green", "x": 150, "y": 330, "ttl": 18}'
 '{"id": "test_rect", "shape": "rect", "color": "#000000", "fill": "#00FF88", "x": 100, "y": 450, "w": 400, "h": 80, "ttl": 15}'
 '{"id": "test_rect_text", "text": "Filled rect + text", "font_size": 30, "color": "#FFFFFF", "x": 110, "y": 495, "ttl": 15}'
+'{"id": "emoju_text", "text": "300💰", "font_size": 14, "color": "blue", "x": 510, "y": 500, "ttl": 25}'
 )
 
 

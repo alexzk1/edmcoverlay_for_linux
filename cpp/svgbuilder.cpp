@@ -12,6 +12,7 @@
 #include <cassert>
 #include <filesystem>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -89,7 +90,7 @@ class TextToSvgConverter
     }
 
     /// @brief Does actual conversion and puts result into @p svgOutStream.
-    void generateSvg(std::ostringstream &svgOutStream)
+    void generateSvg(std::ostringstream &svgOutStream, FontFilesUniques &file_names)
     {
         std::istringstream iss(textToDraw);
         std::string line;
@@ -97,7 +98,7 @@ class TextToSvgConverter
         while (std::getline(iss, line))
         {
             state.x = drawTask.x;
-            processSingleLine(svgOutStream, line);
+            processSingleLine(svgOutStream, file_names, line);
             state.y += static_cast<int>(
               kYSpacing * static_cast<float>(drawTask.text.getFinalFontSize().size));
         }
@@ -120,7 +121,8 @@ class TextToSvgConverter
     /// @brief process single line of the source text: split into possible <text> and <image>
     /// chains, then generate each separated.
     /// It tracks positions of the tags too.
-    void processSingleLine(std::ostringstream &svgOutStream, const std::string &line)
+    void processSingleLine(std::ostringstream &svgOutStream, FontFilesUniques &usedFontFiles,
+                           const std::string &line)
     {
         const auto emojiSpans = makeSpans(line);
         for (const auto &span : emojiSpans)
@@ -144,7 +146,7 @@ class TextToSvgConverter
                 while (iter.next() && span.cls == iter.classify());
                 continue;
             }
-            makeTextTag(svgOutStream, line, span);
+            makeTextTag(svgOutStream, usedFontFiles, line, span);
         }
     }
 
@@ -174,8 +176,8 @@ class TextToSvgConverter
     }
 
     /// @brief generates <text> tag which has no emoji symbols which are failed by lunasvg.
-    void makeTextTag(std::ostringstream &svgOutStream, const std::string &line,
-                     const SpanRange &range)
+    void makeTextTag(std::ostringstream &svgOutStream, FontFilesUniques &usedFontFiles,
+                     const std::string &line, const SpanRange &range)
     {
         using namespace format_helper;
         const auto sub = line.substr(range.begin, range.end - range.begin);
@@ -191,7 +193,9 @@ class TextToSvgConverter
               return stringfmt(R"(font-family="%s")", fam);
           },
         };
-        const auto measure = measureWidhtOfText(sub);
+        const auto measure = measureWidthOfText(sub);
+        usedFontFiles.insert(measure.exactFontFile);
+
         svgOutStream << stringfmt(
           R"(<text x="%upx" y="%upx" font-size="%upx" fill="%s" %s xml:space='preserve'>)", state.x,
           state.y + drawTask.text.getFinalFontSize().size, drawTask.text.getFinalFontSize(),
@@ -204,7 +208,7 @@ class TextToSvgConverter
     /// @note we can set precise Latin font used and measure it, but for bitmap fonts we're doing
     /// guessings there. We find some font, but luasvg could find another.
     [[nodiscard]]
-    emoji::EmojiRenderer::TextFontWidth measureWidhtOfText(const std::string &text) const
+    emoji::EmojiRenderer::TextFontWidth measureWidthOfText(const std::string &text) const
     {
         std::vector<char32_t> txt;
         txt.reserve(text.size());
@@ -218,15 +222,17 @@ class TextToSvgConverter
     }
 };
 
-void makeSvgTextMultiline(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
+void makeSvgTextMultiline(std::ostringstream &svgOutStream, FontFilesUniques &file_names,
+                          const draw_task::drawitem_t &drawTask)
 {
     TextToSvgConverter converter(drawTask);
-    converter.generateSvg(svgOutStream);
+    converter.generateSvg(svgOutStream, file_names);
 }
 
 void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t &drawTask)
 {
     assert(drawTask.drawmode == draw_task::drawmode_t::shape);
+
     const auto drawLineWithColor = [&](int x1, int y1, int x2, int y2, const std::string &color) {
         svgOutStream << "<line "
                      << "x1='" << x1 << "' "
@@ -268,7 +274,10 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
             textTask.color = marker.color;
             textTask.text.fontSize = vector_font_size;
             textTask.text.text = marker.text;
-            makeSvgTextMultiline(svgOutStream, textTask);
+
+            FontFilesUniques fontsToInstall;
+            makeSvgTextMultiline(svgOutStream, fontsToInstall, textTask);
+            InstallNormalFontFileToLuna(fontsToInstall);
         }
     };
 
@@ -342,10 +351,11 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
         svgTextStream << "<g transform='translate(" << -drawTask.x << "," << -drawTask.y << ")'>";
     }
 
+    FontFilesUniques fontsToInstall;
     switch (drawTask.drawmode)
     {
         case draw_task::drawmode_t::text:
-            makeSvgTextMultiline(svgTextStream, drawTask);
+            makeSvgTextMultiline(svgTextStream, fontsToInstall, drawTask);
             break;
         case draw_task::drawmode_t::shape:
             makeSvgShape(svgTextStream, drawTask);
@@ -360,6 +370,8 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
             throw std::runtime_error("Unhandled in code switch case.");
     }
     svgTextStream << "</g></svg>";
+
+    InstallNormalFontFileToLuna(fontsToInstall);
 
     draw_task::drawitem_t res = drawTask;
     if (drawTask.isShapeVector())

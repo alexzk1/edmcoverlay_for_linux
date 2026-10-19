@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -32,6 +33,7 @@
 
 namespace {
 
+// NOLINTNEXTLINE(clazy-non-pod-global-static)
 const std::string kBase64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 inline std::string encodeBase64(const std::vector<unsigned char> &data)
@@ -212,13 +214,25 @@ std::string toKey(const FontPathOrFamily &key)
 } // namespace
 
 namespace emoji {
+
 class EmojiRenderer::FtLibrary
 {
   private:
     using FT_Face_Type = std::remove_pointer_t<FT_Face>;
     using FT_Library_Type = std::remove_pointer_t<FT_Library>;
+    struct LoadedFontFace
+    {
+        opaque_ptr<FT_Face_Type> face;
+        std::filesystem::path file;
+
+        operator bool() const
+        {
+            return static_cast<bool>(face);
+        }
+    };
+
     opaque_ptr<FT_Library_Type> libraryHandle = loadLibrary();
-    std::map<std::string, opaque_ptr<FT_Face_Type>> faces;
+    std::map<std::string, LoadedFontFace> faces;
 
     [[nodiscard]]
     static opaque_ptr<FT_Library_Type> loadLibrary()
@@ -234,35 +248,36 @@ class EmojiRenderer::FtLibrary
     }
 
     [[nodiscard]]
-    opaque_ptr<FT_Face_Type> loadFace(const FontPathOrFamily &pathOrName) const
+    LoadedFontFace loadFace(const FontPathOrFamily &pathOrName) const
     {
-        return AllocateOpaque<FT_Face_Type>(FT_Done_Face, [&pathOrName, this]() -> FT_Face {
+        static const LambdaVisitor findFilePathVisitor = {
+          [](const std::filesystem::path &pth) {
+              return pth.string();
+          },
+          [](const std::string &fam) {
+              return findFontFile(fam);
+          },
+        };
+        auto file = std::visit(findFilePathVisitor, pathOrName);
+        const auto allocator = [file, this]() -> FT_Face {
             if (!libraryHandle)
             {
                 return nullptr;
             }
-            static const LambdaVisitor findFilePathVisitor = {
-              [](const std::filesystem::path &pth) {
-                  return pth.string();
-              },
-              [](const std::string &fam) {
-                  return findFontFile(fam);
-              },
-            };
-            const auto file = std::visit(findFilePathVisitor, pathOrName);
-
             FT_Face face{nullptr};
             if (FT_New_Face(libraryHandle, file.c_str(), 0, &face) == 0)
             {
                 return face;
             }
             return nullptr;
-        });
+        };
+        auto ptr = AllocateOpaque<FT_Face_Type>(FT_Done_Face, std::cref(allocator));
+        return {std::move(ptr), std::move(file)};
     }
 
   public:
     [[nodiscard]]
-    opaque_ptr<FT_Face_Type> getFace(const FontPathOrFamily &pathOrName)
+    LoadedFontFace getFace(const FontPathOrFamily &pathOrName)
     {
         const auto key = toKey(pathOrName);
         auto it = faces.find(key);
@@ -320,52 +335,52 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
         {
             continue;
         }
-        FT_Set_Transform(face, nullptr, nullptr);
+        FT_Set_Transform(face.face, nullptr, nullptr);
 
         FT_Int32 options = FT_LOAD_RENDER;
 
-        if (library->isColorEmojiFont(face))
+        if (library->isColorEmojiFont(face.face))
         {
             options |= FT_LOAD_COLOR;
-            if (face->num_fixed_sizes == 0)
+            if (face.face->num_fixed_sizes == 0)
             {
                 continue;
             }
             int best_match = 0;
-            int diff =
-              std::abs(static_cast<int>(what.font.fontSize.size) - face->available_sizes[0].height);
-            for (int i = 1; i < face->num_fixed_sizes; ++i)
+            int diff = std::abs(static_cast<int>(what.font.fontSize.size)
+                                - face.face->available_sizes[0].height);
+            for (int i = 1; i < face.face->num_fixed_sizes; ++i)
             {
                 const int ndiff = std::abs(static_cast<int>(what.font.fontSize.size)
-                                           - face->available_sizes[i].height);
+                                           - face.face->available_sizes[i].height);
                 if (ndiff < diff)
                 {
                     best_match = i;
                     diff = ndiff;
                 }
             }
-            if (FT_Select_Size(face, best_match))
+            if (FT_Select_Size(face.face, best_match))
             {
                 continue;
             }
         }
         else
         {
-            FT_Set_Pixel_Sizes(face, 0, what.font.fontSize.size);
+            FT_Set_Pixel_Sizes(face.face, 0, what.font.fontSize.size);
         }
 
-        const auto glyph_index = FT_Get_Char_Index(face, what.emoji);
+        const auto glyph_index = FT_Get_Char_Index(face.face, what.emoji);
         if (glyph_index == 0)
         {
             continue;
         }
 
-        if (FT_Load_Glyph(face, glyph_index, options) != 0)
+        if (FT_Load_Glyph(face.face, glyph_index, options) != 0)
         {
             continue;
         }
 
-        const auto glyph = face->glyph;
+        const auto glyph = face.face->glyph;
 
         if (FT_Render_Glyph(glyph, FT_RENDER_MODE_MAX))
         {
@@ -435,44 +450,44 @@ EmojiRenderer::~EmojiRenderer() = default;
 EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirement &font,
                                                          const std::vector<char32_t> &text)
 {
-    for (const auto &font_path : font.fontFaceOrPath)
+    for (const auto &font_face_path : font.fontFaceOrPath)
     {
-        const auto &face = library->getFace(font_path);
+        const auto &face = library->getFace(font_face_path);
         if (!face)
         {
             continue;
         }
-        FT_Set_Transform(face, nullptr, nullptr);
+        FT_Set_Transform(face.face, nullptr, nullptr);
         FT_Int32 options = FT_LOAD_NO_BITMAP;
 
-        if (library->isColorEmojiFont(face))
+        if (library->isColorEmojiFont(face.face))
         {
             options |= FT_LOAD_COLOR;
-            if (face->num_fixed_sizes == 0)
+            if (face.face->num_fixed_sizes == 0)
             {
                 continue;
             }
             int best_match = 0;
             int diff =
-              std::abs(static_cast<int>(font.fontSize.size) - face->available_sizes[0].height);
-            for (int i = 1; i < face->num_fixed_sizes; ++i)
+              std::abs(static_cast<int>(font.fontSize.size) - face.face->available_sizes[0].height);
+            for (int i = 1; i < face.face->num_fixed_sizes; ++i)
             {
-                const int ndiff =
-                  std::abs(static_cast<int>(font.fontSize.size) - face->available_sizes[i].height);
+                const int ndiff = std::abs(static_cast<int>(font.fontSize.size)
+                                           - face.face->available_sizes[i].height);
                 if (ndiff < diff)
                 {
                     best_match = i;
                     diff = ndiff;
                 }
             }
-            if (FT_Select_Size(face, best_match))
+            if (FT_Select_Size(face.face, best_match))
             {
                 continue;
             }
         }
         else
         {
-            FT_Set_Pixel_Sizes(face, 0, font.fontSize.size);
+            FT_Set_Pixel_Sizes(face.face, 0, font.fontSize.size);
         }
 
         FT_Pos pen_x = 0;
@@ -483,20 +498,21 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
         {
             assert(!SpanRange::needsCustomRender(UnicodeSymbolsIterator::classify(ch))
                    && "Glyphs for custom rendering should not come here.");
-            const FT_UInt glyph_index = FT_Get_Char_Index(face, ch);
+            const FT_UInt glyph_index = FT_Get_Char_Index(face.face, ch);
             if (glyph_index == 0)
             {
                 all_ok = false;
                 break;
             }
 
-            if (FT_Load_Glyph(face, glyph_index, options) == 0)
+            if (FT_Load_Glyph(face.face, glyph_index, options) == 0)
             {
-                pen_x += face->glyph->advance.x >> 6;
+                pen_x += face.face->glyph->advance.x >> 6;
                 if (prev)
                 {
                     FT_Vector kern;
-                    if (FT_Get_Kerning(face, prev, glyph_index, FT_KERNING_DEFAULT, &kern) == 0)
+                    if (FT_Get_Kerning(face.face, prev, glyph_index, FT_KERNING_DEFAULT, &kern)
+                        == 0)
                     {
                         pen_x += kern.x >> 6;
                     }
@@ -512,7 +528,7 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
         }
         if (all_ok)
         {
-            return {static_cast<unsigned int>(pen_x), font_path};
+            return {static_cast<unsigned int>(pen_x), font_face_path, face.file};
         }
     }
 

@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <iostream>
 #include <mutex>
+#include <set>
+#include <shared_mutex>
 #include <string>
 #include <unordered_set>
 #include <variant>
@@ -24,10 +26,18 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
         return false;
     }
 
-    static std::mutex mut;
-    const std::lock_guard grd(mut);
+    static std::shared_mutex mut;
     static std::unordered_set<std::string> installed;
-    if (installed.count(path) == 0)
+    {
+        std::shared_lock read_lock(mut);
+        if (installed.find(path) != installed.end())
+        {
+            return true;
+        }
+    }
+
+    std::unique_lock write_lock(mut);
+    if (installed.find(path) == installed.end())
     {
         if (lunasvg_add_font_face_from_file("", false, false, path.c_str()))
         {
@@ -38,6 +48,21 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
             return true;
         }
         return false;
+    }
+    // File was loaded by another client while we were awaiting the lock.
+    return true;
+}
+
+using FontFilesUniques = std::set<std::filesystem::path>;
+
+inline bool InstallNormalFontFileToLuna(const FontFilesUniques &fonts)
+{
+    for (const auto &font : fonts)
+    {
+        if (!InstallNormalFontFileToLuna(font.string()))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -79,6 +104,9 @@ inline const std::vector<FontPathOrFamily> &GetEmojiFonts()
 /// @note Use of non-mono space can make visual wrong aligment with emojies.
 inline const std::vector<FontPathOrFamily> &GetTextFonts()
 {
+    // FIXME: If we will ever add file path here instead family name, than
+    // `InstallNormalFontFileToLuna()` (both overloads) must be update to use actual resolved family
+    // name instead empty string.
     static const std::vector<FontPathOrFamily> fonts = {
       std::string{"Liberation Mono"}, std::string{"DejaVu Sans Mono"},
       std::string{"Unifont"},         std::string{"Symbols Nerd Font Mono"},
