@@ -5,6 +5,7 @@
 #include "font_size.hpp"
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -68,7 +69,7 @@ class EmojiRenderer
     {
         unsigned int computedWidth;
         // Font selected or empty if fallback was used.
-        FontPathOrFamily fontUsedToMeasure;
+        std::string exactFontFamily;
         // This is exact font file is being used.
         std::filesystem::path exactFontFile;
     };

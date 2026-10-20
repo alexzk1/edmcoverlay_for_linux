@@ -14,34 +14,61 @@
 #include <set>
 #include <shared_mutex>
 #include <string>
-#include <unordered_set>
 #include <variant>
 #include <vector>
 
-/// @brief Tries to add font path to lunasvg once. It is up-to caller to ensure it is exists.
-inline bool InstallNormalFontFileToLuna(const std::string &path)
+struct FontFileAndFamily
 {
-    if (path.empty())
+    std::string family;
+    std::filesystem::path file;
+
+    decltype(auto) Tie() const
+    {
+        return std::tie(family, file);
+    }
+
+    bool operator<(const FontFileAndFamily &other) const
+    {
+        return Tie() < other.Tie();
+    }
+
+    bool operator==(const FontFileAndFamily &other) const
+    {
+        return Tie() == other.Tie();
+    }
+
+    bool operator!=(const FontFileAndFamily &other) const
+    {
+        return !(*this == other);
+    }
+};
+using FontsUniques = std::set<FontFileAndFamily>;
+
+/// @brief Tries to add font path to lunasvg once. It is up-to caller to ensure it is exists.
+inline bool InstallNormalFontFileToLuna(const FontFileAndFamily &ff)
+{
+    if (ff.file.empty())
     {
         return false;
     }
 
     static std::shared_mutex mut;
-    static std::unordered_set<std::string> installed;
+    static FontsUniques installed;
     {
         std::shared_lock read_lock(mut);
-        if (installed.find(path) != installed.end())
+        if (installed.find(ff) != installed.end())
         {
             return true;
         }
     }
 
     std::unique_lock write_lock(mut);
-    if (installed.find(path) == installed.end())
+    if (installed.find(ff) == installed.end())
     {
-        if (lunasvg_add_font_face_from_file("", false, false, path.c_str()))
+        const auto pth = ff.file.string();
+        if (lunasvg_add_font_face_from_file(ff.family.c_str(), false, false, pth.c_str()))
         {
-            installed.insert(path);
+            installed.insert(ff);
 #ifndef NDEBUG
             std::cout << path << " font was loaded.\n";
 #endif
@@ -53,13 +80,11 @@ inline bool InstallNormalFontFileToLuna(const std::string &path)
     return true;
 }
 
-using FontFilesUniques = std::set<std::filesystem::path>;
-
-inline bool InstallNormalFontFileToLuna(const FontFilesUniques &fonts)
+inline bool InstallNormalFontFileToLuna(const FontsUniques &fonts)
 {
     for (const auto &font : fonts)
     {
-        if (!InstallNormalFontFileToLuna(font.string()))
+        if (!InstallNormalFontFileToLuna(font))
         {
             return false;
         }
@@ -104,9 +129,6 @@ inline const std::vector<FontPathOrFamily> &GetEmojiFonts()
 /// @note Use of non-mono space can make visual wrong aligment with emojies.
 inline const std::vector<FontPathOrFamily> &GetTextFonts()
 {
-    // FIXME: If we will ever add file path here instead family name, than
-    // `InstallNormalFontFileToLuna()` (both overloads) must be update to use actual resolved family
-    // name instead empty string.
     static const std::vector<FontPathOrFamily> fonts = {
       std::string{"Liberation Mono"}, std::string{"DejaVu Sans Mono"},
       std::string{"Unifont"},         std::string{"Symbols Nerd Font Mono"},

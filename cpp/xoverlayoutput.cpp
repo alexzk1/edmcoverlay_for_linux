@@ -239,7 +239,7 @@ class XPrivateAccess
     void drawAsSvg(const draw_task::drawitem_t &drawitem)
     {
         assert(drawitem.drawmode == draw_task::drawmode_t::svg);
-        InstallNormalFontFileToLuna(drawitem.svg.fontFile);
+        InstallNormalFontFileToLuna({"", drawitem.svg.fontFile});
 
         if (!drawitem.svg.render)
         {

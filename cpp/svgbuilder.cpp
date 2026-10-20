@@ -2,6 +2,7 @@
 
 #include "drawables.h"
 #include "emoji_renderer.hpp"
+#include "font_size.hpp"
 #include "lambda_visitors.hpp"
 #include "luna_default_fonts.h"
 #include "strfmt.h"
@@ -90,7 +91,7 @@ class TextToSvgConverter
     }
 
     /// @brief Does actual conversion and puts result into @p svgOutStream.
-    void generateSvg(std::ostringstream &svgOutStream, FontFilesUniques &file_names)
+    void generateSvg(std::ostringstream &svgOutStream, FontsUniques &file_names)
     {
         std::istringstream iss(textToDraw);
         std::string line;
@@ -121,7 +122,7 @@ class TextToSvgConverter
     /// @brief process single line of the source text: split into possible <text> and <image>
     /// chains, then generate each separated.
     /// It tracks positions of the tags too.
-    void processSingleLine(std::ostringstream &svgOutStream, FontFilesUniques &usedFontFiles,
+    void processSingleLine(std::ostringstream &svgOutStream, FontsUniques &usedFontFiles,
                            const std::string &line)
     {
         const auto emojiSpans = makeSpans(line);
@@ -169,37 +170,24 @@ class TextToSvgConverter
         svgOutStream << stringfmt(
           R"(<image x="%upx" y="%upx" width="%upx" height="%upx" href="data:image/png;base64,%s"/>)",
           state.x, state.y, png.width, png.height, png.png_base64);
-
-        state.x += png.width
-                   + std::min<unsigned int>(
-                     3u, static_cast<unsigned int>(static_cast<float>(png.width) * 0.05f));
+        state.x += png.width;
     }
 
     /// @brief generates <text> tag which has no emoji symbols which are failed by lunasvg.
-    void makeTextTag(std::ostringstream &svgOutStream, FontFilesUniques &usedFontFiles,
+    void makeTextTag(std::ostringstream &svgOutStream, FontsUniques &usedFontFiles,
                      const std::string &line, const SpanRange &range)
     {
         using namespace format_helper;
-        const auto sub = line.substr(range.begin, range.end - range.begin);
+        const auto text_len = range.end - range.begin;
+        const auto sub = line.substr(range.begin, text_len);
 
-        const LambdaVisitor getMeasuredFontFam{
-          [](const std::filesystem::path &) {
-              // TODO: if renderer selected external font, pobably, we could extract font-family
-              // from it.
-              return std::string{};
-          },
-          [](const std::string &fam) {
-              // This is "family font name" (not a file name) so we can use for luna-svg.
-              return stringfmt(R"(font-family="%s")", fam);
-          },
-        };
         const auto measure = measureWidthOfText(sub);
-        usedFontFiles.insert(measure.exactFontFile);
+        usedFontFiles.insert({measure.exactFontFamily, measure.exactFontFile});
 
         svgOutStream << stringfmt(
           R"(<text x="%upx" y="%upx" font-size="%upx" fill="%s" %s xml:space='preserve'>)", state.x,
           state.y + drawTask.text.getFinalFontSize().size, drawTask.text.getFinalFontSize(),
-          drawTask.color, std::visit(getMeasuredFontFam, measure.fontUsedToMeasure))
+          drawTask.color, stringfmt(R"(font-family="%s")", measure.exactFontFamily))
                      << escape_for_svg(sub) << "</text>";
         state.x += measure.computedWidth;
     }
@@ -222,7 +210,7 @@ class TextToSvgConverter
     }
 };
 
-void makeSvgTextMultiline(std::ostringstream &svgOutStream, FontFilesUniques &file_names,
+void makeSvgTextMultiline(std::ostringstream &svgOutStream, FontsUniques &file_names,
                           const draw_task::drawitem_t &drawTask)
 {
     TextToSvgConverter converter(drawTask);
@@ -275,7 +263,7 @@ void makeSvgShape(std::ostringstream &svgOutStream, const draw_task::drawitem_t 
             textTask.text.fontSize = vector_font_size;
             textTask.text.text = marker.text;
 
-            FontFilesUniques fontsToInstall;
+            FontsUniques fontsToInstall;
             makeSvgTextMultiline(svgOutStream, fontsToInstall, textTask);
             InstallNormalFontFileToLuna(fontsToInstall);
         }
@@ -351,7 +339,7 @@ draw_task::drawitem_t SvgBuilder::BuildSvgTask() const
         svgTextStream << "<g transform='translate(" << -drawTask.x << "," << -drawTask.y << ")'>";
     }
 
-    FontFilesUniques fontsToInstall;
+    FontsUniques fontsToInstall;
     switch (drawTask.drawmode)
     {
         case draw_task::drawmode_t::text:

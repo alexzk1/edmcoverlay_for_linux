@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 /// @brief Those below allows to iterate unicode text string and split it in chains by different

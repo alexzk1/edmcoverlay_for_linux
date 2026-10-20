@@ -1,5 +1,6 @@
 #include "emoji_renderer.hpp"
 
+#include "font_path_or_family.hpp"
 #include "freetype/fttypes.h"
 #include "lambda_visitors.hpp"
 #include "opaque_ptr.h"
@@ -20,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <mutex>
@@ -417,11 +419,11 @@ const PngData &EmojiRenderer::renderToPng(const EmojiToRender &what)
                 }
                 break;
             case FT_PIXEL_MODE_BGRA:
-                for (int y = 0; y < h; ++y)
+                for (unsigned int y = 0; y < h; ++y)
                 {
                     const unsigned char *src = std::next(glyph->bitmap.buffer, y * pitch); // NOLINT
                     unsigned char *dst = std::next(bmp.pixels.data(), y * w * 4);          // NOLINT
-                    for (int x = 0; x < w; ++x)
+                    for (unsigned int x = 0; x < w; ++x)
                     {
                         // FreeType: BGRA
                         dst[4 * x + 0] = src[4 * x + 2]; // R
@@ -458,7 +460,7 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
             continue;
         }
         FT_Set_Transform(face.face, nullptr, nullptr);
-        FT_Int32 options = FT_LOAD_NO_BITMAP;
+        FT_Int32 options = FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
 
         if (library->isColorEmojiFont(face.face))
         {
@@ -493,7 +495,7 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
         FT_Pos pen_x = 0;
         FT_UInt prev = 0;
 
-        bool all_ok = true;
+        unsigned int unsupported_symbols_size = 0u;
         for (const char32_t ch : text)
         {
             assert(!SpanRange::needsCustomRender(UnicodeSymbolsIterator::classify(ch))
@@ -501,39 +503,40 @@ EmojiRenderer::TextFontWidth EmojiRenderer::computeWidth(const EmojiFontRequirem
             const FT_UInt glyph_index = FT_Get_Char_Index(face.face, ch);
             if (glyph_index == 0)
             {
-                all_ok = false;
-                break;
-            }
-
-            if (FT_Load_Glyph(face.face, glyph_index, options) == 0)
-            {
-                pen_x += face.face->glyph->advance.x >> 6;
-                if (prev)
-                {
-                    FT_Vector kern;
-                    if (FT_Get_Kerning(face.face, prev, glyph_index, FT_KERNING_DEFAULT, &kern)
-                        == 0)
-                    {
-                        pen_x += kern.x >> 6;
-                    }
-                }
+                // Best guess we can for unsupported symbol.
+                unsupported_symbols_size += font.fontSize.size;
             }
             else
             {
-                all_ok = false;
-                break;
+                if (FT_Load_Glyph(face.face, glyph_index, options) == 0)
+                {
+                    pen_x += face.face->glyph->advance.x;
+                    if (prev)
+                    {
+                        FT_Vector kern;
+                        if (FT_Get_Kerning(face.face, prev, glyph_index, FT_KERNING_DEFAULT, &kern)
+                            == 0)
+                        {
+                            pen_x += kern.x;
+                        }
+                    }
+                }
+                else
+                {
+                    // Best guess we can for unsupported symbol.
+                    unsupported_symbols_size += font.fontSize.size;
+                }
             }
-
             prev = glyph_index;
         }
-        if (all_ok)
-        {
-            return {static_cast<unsigned int>(pen_x), font_face_path, face.file};
-        }
+        const auto pen_final = static_cast<std::uint64_t>(pen_x + 32);
+        const auto final_width =
+          static_cast<unsigned int>(pen_final >> 6) + unsupported_symbols_size;
+        return {final_width, std::string(face.face->family_name), face.file};
     }
 
     // Work around if we could not find valid font.
-    return {static_cast<unsigned int>(text.size()) * font.fontSize.size, std::string{}};
+    return {static_cast<unsigned int>(text.size()) * font.fontSize.size, std::string{}, {}};
 }
 
 EmojiRenderer &EmojiRenderer::instance()

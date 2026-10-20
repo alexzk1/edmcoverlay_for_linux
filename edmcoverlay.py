@@ -1,13 +1,12 @@
-import queue
-import threading
-from _logger import logger
-
-import secrets
 import inspect
 import json
-import _config_vars
-from typing import Any, Optional
+import queue
+import secrets
+import threading
+from typing import Any
 
+import _config_vars
+from _logger import logger
 from persistent_socket import PersistentSocket
 
 SERVER_IP = "127.0.0.1"
@@ -23,7 +22,7 @@ class OverlayImpl:
     while others remain connected.
     """
 
-    _config: Optional[_config_vars.ConfigVars] = None
+    _config: _config_vars.ConfigVars | None = None
 
     def __init__(
         self,
@@ -63,14 +62,13 @@ class OverlayImpl:
                 ok = self._connection.send(str(len(bstr)).encode("utf-8") + b"#" + bstr)
                 if not ok:
                     logger.warning("Overlay Worker: Could not send data to binary.")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Overlay Worker thread error: {e}")
             finally:
                 self._queue.task_done()
 
     def _send_raw_text(self, inpstr: str):
         self._queue.put(inpstr)
-        return None
 
     def _send2bin(self, owner: str, msg: dict[str, Any]):
         if self._config is not None:
